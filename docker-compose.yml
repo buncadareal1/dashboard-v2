@@ -1,0 +1,20 @@
+services:
+  backend:
+    build: ./backend
+    container_name: smartland-backend
+    restart: unless-stopped
+    env_file: ./backend/.env
+    volumes:
+      - ./backend/uploads:/app/uploads
+      - ./backend/sql_app.db:/app/sql_app.db
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build: ./frontend
+    container_name: smartland-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
