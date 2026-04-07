@@ -1,0 +1,14 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+.env.*
+sql_app.db
+uploads/
+tests/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+data.csv
+sample_data.csv

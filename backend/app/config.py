@@ -22,7 +22,9 @@ class Settings:
     ALLOWED_ORIGINS: list[str] = [
         o.strip()
         for o in os.environ.get("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+        if o.strip()
     ]
+    ALLOWED_ORIGIN_REGEX: str = os.environ.get("ALLOWED_ORIGIN_REGEX", "")
 
     UPLOAD_DIR: str = os.environ.get("UPLOAD_DIR", "uploads")
     MAX_UPLOAD_SIZE: int = int(os.environ.get("MAX_UPLOAD_SIZE_MB", "10")) * 1024 * 1024
