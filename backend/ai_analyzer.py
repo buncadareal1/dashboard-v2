@@ -7,7 +7,6 @@ import os
 import json
 import logging
 import requests
-import os
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -59,7 +58,7 @@ def _build_campaign_summary(campaigns: list) -> str:
         lines.append(f"   CTR: {ctr:.2f}% | CPL: {cpl:,.0f}đ | ROAS: {roas:.1f}x | Trạng thái: {c.get('status', 'N/A')}")
         lines.append("")
 
-    total_roas = (total_purchases * 50 / total_spend) if total_spend > 0 else 0
+    total_roas = (total_purchases * AVG_ORDER_VALUE / total_spend) if total_spend > 0 else 0
     avg_cpl = (total_spend / total_purchases) if total_purchases > 0 else 0
     lines.append(f"TỔNG: Chi tiêu {total_spend:,.0f}đ | Đơn hàng: {total_purchases} | ROAS: {total_roas:.1f}x | CPL TB: {avg_cpl:,.0f}đ")
 

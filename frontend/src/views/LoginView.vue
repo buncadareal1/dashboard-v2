@@ -24,7 +24,7 @@
 
         <!-- Thông báo domain -->
         <p class="text-[11px] text-slate-400">
-          Chỉ chấp nhận email <span class="font-bold text-primary">@smartland.vn</span> và <span class="font-bold text-primary">@smartrealtors.vn</span>
+          Chỉ chấp nhận email <span class="font-bold text-primary">@smartland.vn</span>, <span class="font-bold text-primary">@smartrealtors.vn</span> và <span class="font-bold text-primary">@smartproperty.vn</span>
         </p>
 
         <!-- Thông báo lỗi -->

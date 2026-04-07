@@ -1,14 +1,81 @@
 services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: smartland-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-smartland}
+      POSTGRES_USER: ${DB_USER:-smartland}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-smartland_secret}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-smartland}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: smartland-redis
+    restart: unless-stopped
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   backend:
     build: ./backend
     container_name: smartland-backend
     restart: unless-stopped
     env_file: ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-smartland}:${DB_PASSWORD:-smartland_secret}@postgres:5432/${DB_NAME:-smartland}
+      REDIS_URL: redis://redis:6379/0
     volumes:
+      - ./backend:/app
       - ./backend/uploads:/app/uploads
-      - ./backend/sql_app.db:/app/sql_app.db
-    ports:
-      - "8000:8000"
+    # Port 8000 không cần expose ra host - nginx proxy qua docker network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery-worker:
+    build: ./backend
+    container_name: smartland-celery-worker
+    restart: unless-stopped
+    command: celery -A app.celery_app worker -l info -c 4 --max-tasks-per-child=100
+    env_file: ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-smartland}:${DB_PASSWORD:-smartland_secret}@postgres:5432/${DB_NAME:-smartland}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+      - ./backend/uploads:/app/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  celery-beat:
+    build: ./backend
+    container_name: smartland-celery-beat
+    restart: unless-stopped
+    command: celery -A app.celery_app beat -l info
+    env_file: ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-smartland}:${DB_PASSWORD:-smartland_secret}@postgres:5432/${DB_NAME:-smartland}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy
 
   frontend:
     build: ./frontend
@@ -18,3 +85,7 @@ services:
       - "80:80"
     depends_on:
       - backend
+
+volumes:
+  postgres_data:
+  redis_data:

@@ -37,11 +37,53 @@ export const useUiStore = defineStore('ui', () => {
         return `${dateFrom.value} → ${dateTo.value}`
     })
 
-    // Thông báo
-    const notifications = ref([
-        { id: 1, title: 'Cảnh báo CPL', desc: 'Chiến dịch Bất Động Sản vượt trần 150k', type: 'error' },
-        { id: 2, title: 'Đề xuất AI', desc: 'AI đề xuất tắt chiến dịch "Video Demo"', type: 'info' }
-    ])
+    // Thông báo nâng cao
+    const notifications = ref(JSON.parse(localStorage.getItem('notifications') || '[]').length > 0
+        ? JSON.parse(localStorage.getItem('notifications'))
+        : [
+            { id: 1, title: 'Cảnh báo CPL', desc: 'Chiến dịch Bất Động Sản vượt trần 150k', type: 'error', read: false, time: new Date().toISOString(), category: 'budget' },
+            { id: 2, title: 'Đề xuất AI', desc: 'AI đề xuất tắt chiến dịch "Video Demo"', type: 'info', read: false, time: new Date().toISOString(), category: 'ai' }
+        ]
+    )
+
+    const unreadCount = computed(() => notifications.value.filter(n => !n.read).length)
+
+    const addNotification = (notification) => {
+        const newNotif = {
+            id: Date.now(),
+            time: new Date().toISOString(),
+            read: false,
+            ...notification
+        }
+        notifications.value = [newNotif, ...notifications.value].slice(0, 50)
+        _persistNotifications()
+    }
+
+    const markAsRead = (id) => {
+        notifications.value = notifications.value.map(n =>
+            n.id === id ? { ...n, read: true } : n
+        )
+        _persistNotifications()
+    }
+
+    const markAllAsRead = () => {
+        notifications.value = notifications.value.map(n => ({ ...n, read: true }))
+        _persistNotifications()
+    }
+
+    const removeNotification = (id) => {
+        notifications.value = notifications.value.filter(n => n.id !== id)
+        _persistNotifications()
+    }
+
+    const clearAllNotifications = () => {
+        notifications.value = []
+        _persistNotifications()
+    }
+
+    const _persistNotifications = () => {
+        localStorage.setItem('notifications', JSON.stringify(notifications.value))
+    }
 
     // Dark mode
     const isDarkMode = ref(localStorage.getItem('theme') === 'dark')
@@ -59,7 +101,8 @@ export const useUiStore = defineStore('ui', () => {
     return {
         dateFrom, dateTo, datePreset, dateRangeLabel,
         setDatePreset, setCustomRange, formatDate,
-        notifications, isDarkMode, toggleDark,
+        notifications, unreadCount, addNotification, markAsRead, markAllAsRead, removeNotification, clearAllNotifications,
+        isDarkMode, toggleDark,
         budgetLimit, checkBudgetAlert
     }
 })

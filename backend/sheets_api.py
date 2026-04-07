@@ -40,6 +40,10 @@ def fetch_public_sheet_csv(file_name: str) -> list[dict]:
         if 'campaign_id' in headers and 'spent' in headers:
             return _parse_facebook_raw(csv_data)
 
+        # Detect format: Marketing Analytics (có campaign_id, ad_spend, revenue, ROAS...)
+        if 'campaign_id' in headers and 'ad_spend' in headers and 'ROAS' in headers:
+            return _parse_marketing_analytics(csv_data)
+
         # Format chuẩn dashboard
         return _parse_standard(csv_data)
 
@@ -128,6 +132,87 @@ def _parse_facebook_raw(rows: list[dict]) -> list[dict]:
         })
 
     # Sắp xếp theo spend giảm dần
+    results.sort(key=lambda x: x["spend"], reverse=True)
+    return results
+
+
+def _parse_marketing_analytics(rows: list[dict]) -> list[dict]:
+    """Parse format Marketing Analytics: campaign_id, ad_spend, revenue, ROAS, profit, etc. (41 cột)."""
+    results = []
+    for row in rows:
+        campaign_id = row.get("campaign_id", "")
+        ad_spend = _safe_float(row.get("ad_spend", "0"))
+        impressions = _safe_int(row, ["impressions"])
+        clicks = _safe_int(row, ["clicks"])
+        conversions = _safe_int(row, ["conversions"])
+        revenue = _safe_float(row.get("revenue", "0"))
+
+        results.append({
+            # --- Backward-compatible fields (7 cột chuẩn) ---
+            "name": campaign_id,
+            "spend": ad_spend,
+            "status": "ACTIVE",
+            "imp": impressions,
+            "clicks": clicks,
+            "engagements": 0,
+            "purchases": conversions,
+
+            # --- Campaign info ---
+            "campaign_id": campaign_id,
+            "campaign_objective": row.get("campaign_objective", ""),
+            "platform": row.get("platform", ""),
+            "ad_placement": row.get("ad_placement", ""),
+            "industry_vertical": row.get("industry_vertical", ""),
+            "budget_tier": row.get("budget_tier", ""),
+
+            # --- Device & OS ---
+            "device_type": row.get("device_type", ""),
+            "operating_system": row.get("operating_system", ""),
+
+            # --- Creative ---
+            "creative_format": row.get("creative_format", ""),
+            "creative_size": row.get("creative_size", ""),
+            "ad_copy_length": row.get("ad_copy_length", ""),
+            "has_call_to_action": row.get("has_call_to_action", "").lower() == "true",
+            "creative_emotion": row.get("creative_emotion", ""),
+            "creative_age_days": _safe_int(row, ["creative_age_days"]),
+
+            # --- Targeting ---
+            "target_audience_age": row.get("target_audience_age", ""),
+            "target_audience_gender": row.get("target_audience_gender", ""),
+            "audience_interest_category": row.get("audience_interest_category", ""),
+            "income_bracket": row.get("income_bracket", ""),
+            "purchase_intent_score": row.get("purchase_intent_score", ""),
+            "retargeting_flag": row.get("retargeting_flag", "").lower() == "true",
+
+            # --- Time ---
+            "start_date": row.get("start_date", ""),
+            "quarter": _safe_int(row, ["quarter"]),
+            "day_of_week": row.get("day_of_week", ""),
+            "hour_of_day": _safe_int(row, ["hour_of_day"]),
+            "campaign_day": _safe_int(row, ["campaign_day"]),
+
+            # --- Quality & Performance ---
+            "quality_score": _safe_int(row, ["quality_score"]),
+            "actual_cpc": _safe_float(row.get("actual_cpc", "0")),
+            "ad_spend": ad_spend,
+            "revenue": revenue,
+            "conversions": conversions,
+
+            # --- Engagement metrics ---
+            "bounce_rate": _safe_float(row.get("bounce_rate", "0")),
+            "avg_session_duration": _safe_float(row.get("avg_session_duration_seconds", "0")),
+            "pages_per_session": _safe_float(row.get("pages_per_session", "0")),
+
+            # --- Calculated KPIs ---
+            "ctr": _safe_float(row.get("CTR", "0")),
+            "cpc": _safe_float(row.get("CPC", "0")),
+            "conversion_rate": _safe_float(row.get("conversion_rate", "0")),
+            "cpa": _safe_float(row.get("CPA", "0")),
+            "roas": _safe_float(row.get("ROAS", "0")),
+            "profit": _safe_float(row.get("profit", "0")),
+        })
+
     results.sort(key=lambda x: x["spend"], reverse=True)
     return results
 

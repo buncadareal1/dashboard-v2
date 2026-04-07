@@ -2,6 +2,7 @@ import { defineStore } from "pinia";
 import { ref, computed } from "vue";
 import { useRouter } from "vue-router";
 import api from "../lib/axios";
+import { useAppDataStore } from "./appData";
 
 // Domain cho phép đăng nhập
 const ALLOWED_DOMAINS = ["smartland.vn", "smartrealtors.vn"];
@@ -48,6 +49,9 @@ export const useAuthStore = defineStore("auth", () => {
       if (avatar.value) localStorage.setItem("avatar", avatar.value);
       localStorage.setItem("role", role.value);
 
+      // Connect WebSocket for real-time updates
+      useAppDataStore().initRealtime(token.value);
+
       router.push("/");
       return { success: true };
     } catch (error) {
@@ -69,6 +73,10 @@ export const useAuthStore = defineStore("auth", () => {
       localStorage.setItem("token", token.value);
       localStorage.setItem("username", username.value);
       localStorage.setItem("role", role.value);
+
+      // Connect WebSocket for real-time updates
+      useAppDataStore().initRealtime(token.value);
+
       router.push("/");
       return true;
     } catch (error) {
@@ -77,6 +85,7 @@ export const useAuthStore = defineStore("auth", () => {
   };
 
   const logout = () => {
+    useAppDataStore().stopRealtime();
     token.value = null;
     username.value = null;
     email.value = null;

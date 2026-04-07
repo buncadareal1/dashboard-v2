@@ -13,9 +13,14 @@ backend/uploads/*
 !backend/uploads/.gitkeep
 
 # Python
-backend/__pycache__/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
 backend/venv/
-backend/*.pyc
+backend/.venv/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
 
 # Node
 frontend/node_modules/
