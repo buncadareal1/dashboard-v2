@@ -62,7 +62,18 @@ const router = createRouter({
     routes,
 })
 
+// Demo mode (branch only): bypass auth so the app runs on Vercel without a backend.
+// Enabled when VITE_DEMO_MODE=true at build time. Main branch is unaffected.
+const DEMO_MODE = String(import.meta.env.VITE_DEMO_MODE || '').toLowerCase() === 'true'
+
 router.beforeEach((to, _from, next) => {
+    if (DEMO_MODE) {
+        const authStore = useAuthStore()
+        if (!authStore.token) authStore.enableDemoMode?.()
+        if (to.path === '/login') return next('/')
+        return next()
+    }
+
     const authStore = useAuthStore()
 
     if (to.meta.requiresAuth && !authStore.token) {

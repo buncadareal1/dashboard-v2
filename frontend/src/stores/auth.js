@@ -84,6 +84,15 @@ export const useAuthStore = defineStore("auth", () => {
     }
   };
 
+  // Demo mode: set fake credentials so app renders without backend.
+  const enableDemoMode = () => {
+    token.value = "demo-token";
+    username.value = "Demo Admin";
+    email.value = "demo@smartland.vn";
+    avatar.value = null;
+    role.value = "admin";
+  };
+
   const logout = () => {
     useAppDataStore().stopRealtime();
     token.value = null;
@@ -113,5 +122,6 @@ export const useAuthStore = defineStore("auth", () => {
     loginWithGoogle,
     login,
     logout,
+    enableDemoMode,
   };
 });
