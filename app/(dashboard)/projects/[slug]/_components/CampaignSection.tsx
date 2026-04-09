@@ -1,5 +1,7 @@
+import { Megaphone } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -47,9 +49,11 @@ export function CampaignSection({ campaigns }: CampaignSectionProps) {
       </CardHeader>
       <CardContent>
         {campaigns.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            Chưa có campaign nào. Upload CSV Facebook để bắt đầu.
-          </p>
+          <EmptyState
+            icon={<Megaphone />}
+            title="Chưa có chiến dịch nào"
+            description="Upload CSV Facebook Ads để bắt đầu xem dữ liệu campaign."
+          />
         ) : (
           <Table>
             <TableHeader>

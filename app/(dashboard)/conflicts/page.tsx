@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { getUnresolvedConflicts } from "@/lib/queries/conflicts";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ConflictResolveButton } from "./_components/ConflictResolveButton";
 import { formatDateTime } from "@/lib/utils/format";
 
@@ -24,14 +25,11 @@ export default async function ConflictsPage() {
       </div>
 
       {conflicts.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <AlertTriangle className="h-12 w-12 text-muted-foreground" />
-            <p className="mt-3 text-sm text-muted-foreground">
-              Không có conflict nào cần xử lý 🎉
-            </p>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={<AlertTriangle />}
+          title="Không có xung đột"
+          description="Mọi lead đều đã được khớp tự động — không cần xử lý thủ công."
+        />
       ) : (
         <Card>
           <CardHeader>

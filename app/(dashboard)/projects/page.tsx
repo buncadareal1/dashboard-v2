@@ -6,6 +6,7 @@ import { getProjectsForUser } from "@/lib/queries/projects";
 import { ProjectCard } from "./_components/ProjectCard";
 import { ProjectListFilters } from "./_components/ProjectListFilters";
 import { buttonVariants } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 
 interface PageProps {
   searchParams: Promise<{
@@ -51,7 +52,16 @@ export default async function ProjectsListPage({ searchParams }: PageProps) {
       <ProjectListFilters counts={counts} />
 
       {projects.length === 0 ? (
-        <EmptyState />
+        <EmptyState
+          icon={<FolderKanban />}
+          title="Chưa có dự án nào"
+          description="Tạo dự án mới từ nút phía trên hoặc dropdown “Tạo mới”."
+          action={
+            <Link href="/projects/new" className={buttonVariants()}>
+              + Tạo dự án đầu tiên
+            </Link>
+          }
+        />
       ) : (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           {projects.map((p) => (
@@ -59,24 +69,6 @@ export default async function ProjectsListPage({ searchParams }: PageProps) {
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed py-16 text-center">
-      <FolderKanban className="h-12 w-12 text-muted-foreground" />
-      <h3 className="mt-4 text-base font-medium">Chưa có dự án nào</h3>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Tạo dự án mới từ nút phía trên hoặc dropdown &ldquo;Tạo mới&rdquo;.
-      </p>
-      <Link
-        href="/projects/new"
-        className={buttonVariants({ className: "mt-4" })}
-      >
-        + Tạo dự án đầu tiên
-      </Link>
     </div>
   );
 }

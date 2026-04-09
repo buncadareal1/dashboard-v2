@@ -73,7 +73,12 @@ export function UserActionsMenu({
       <DropdownMenu>
         <DropdownMenuTrigger
           render={
-            <Button variant="ghost" size="icon" disabled={pending}>
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={pending}
+              aria-label={`Hành động cho ${user.email}`}
+            >
               <MoreVertical className="h-4 w-4" />
             </Button>
           }

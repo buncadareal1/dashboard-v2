@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Inbox } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -8,7 +9,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { formatDateTime } from "@/lib/utils/format";
+import { EmptyState } from "@/components/ui/empty-state";
+import { formatDateTimeVN, formatNumber } from "@/lib/utils/format";
+import { stageBadgeVariant } from "@/lib/utils/stage-badge";
 import type { LeadDetailRow } from "@/lib/queries/report";
 
 interface LeadDetailTableProps {
@@ -28,16 +31,18 @@ export function LeadDetailTable({
 
   if (rows.length === 0) {
     return (
-      <p className="py-12 text-center text-sm text-muted-foreground">
-        Chưa có lead nào.
-      </p>
+      <EmptyState
+        icon={<Inbox />}
+        title="Chưa có lead nào"
+        description="Chưa có lead nào khớp với bộ lọc hiện tại."
+      />
     );
   }
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
-        Tổng: <span className="font-medium text-foreground">{total}</span> bản ghi
+        Tổng: <span className="font-medium text-foreground">{formatNumber(total)}</span> bản ghi
       </p>
 
       <div className="overflow-x-auto">
@@ -62,7 +67,7 @@ export function LeadDetailTable({
             {rows.map((r) => (
               <TableRow key={r.id}>
                 <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
-                  {formatDateTime(r.fbCreatedAt)}
+                  {formatDateTimeVN(r.fbCreatedAt)}
                 </TableCell>
                 <TableCell className="font-medium">{r.fullName}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">
@@ -70,12 +75,7 @@ export function LeadDetailTable({
                 </TableCell>
                 <TableCell>
                   {r.stageLabel ? (
-                    <Badge
-                      style={{
-                        backgroundColor: `${r.stageColor ?? "#94a3b8"}20`,
-                        color: r.stageColor ?? "#475569",
-                      }}
-                    >
+                    <Badge variant={stageBadgeVariant(r.stageLabel)}>
                       {r.stageLabel}
                     </Badge>
                   ) : (

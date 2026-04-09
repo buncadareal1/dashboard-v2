@@ -24,6 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { formatDateTimeVN } from "@/lib/utils/format";
 
 export default async function SettingsPage() {
   const user = await getSessionUser();
@@ -164,7 +165,7 @@ export default async function SettingsPage() {
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {u.lastLoginAt
-                            ? new Date(u.lastLoginAt).toLocaleString("vi-VN")
+                            ? formatDateTimeVN(u.lastLoginAt)
                             : "Chưa login"}
                         </TableCell>
                         <TableCell>

@@ -1,6 +1,7 @@
 import { ImageIcon, Trophy } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Table,
   TableBody,
@@ -72,9 +73,11 @@ export function AdCreativeSection({ ads, totalBudget }: AdCreativeSectionProps) 
       </CardHeader>
       <CardContent>
         {ads.length === 0 ? (
-          <p className="py-8 text-center text-sm text-muted-foreground">
-            Chưa có mẫu quảng cáo nào. Upload CSV Facebook để bắt đầu.
-          </p>
+          <EmptyState
+            icon={<ImageIcon />}
+            title="Chưa có mẫu quảng cáo nào"
+            description="Upload CSV Facebook Ads để bắt đầu phân tích hiệu quả ad."
+          />
         ) : (
           <Table>
             <TableHeader>

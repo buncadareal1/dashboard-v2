@@ -13,6 +13,41 @@ export function formatNumber(n: number | null | undefined): string {
   return VND.format(n);
 }
 
+const DATE_VN = new Intl.DateTimeFormat("vi-VN", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+
+const DATETIME_VN = new Intl.DateTimeFormat("vi-VN", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+/**
+ * Format ngày kiểu Việt Nam: dd/MM/yyyy.
+ */
+export function formatDateVN(d: Date | string | null | undefined): string {
+  if (!d) return "—";
+  const date = typeof d === "string" ? new Date(d) : d;
+  if (Number.isNaN(date.getTime())) return "—";
+  return DATE_VN.format(date);
+}
+
+/**
+ * Format ngày + giờ kiểu Việt Nam: dd/MM/yyyy HH:mm.
+ */
+export function formatDateTimeVN(d: Date | string | null | undefined): string {
+  if (!d) return "—";
+  const date = typeof d === "string" ? new Date(d) : d;
+  if (Number.isNaN(date.getTime())) return "—";
+  return DATETIME_VN.format(date).replace(",", "");
+}
+
 /**
  * Format tiền VND viết tắt: M (triệu), B (tỷ), K (nghìn).
  * Frontend mẫu dùng style này.
