@@ -1,17 +1,22 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { ArrowLeft, DollarSign, Users, TrendingDown, Target } from "lucide-react";
+import { eq, and } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth/session";
 import { assertCanViewProject } from "@/lib/auth/guards";
+import { db } from "@/db";
+import { projectUsers } from "@/db/schema";
 import {
   getProjectDetailBySlug,
   getCampaignStats,
   getAdCreativeStats,
 } from "@/lib/queries/project-detail";
+import { getUploadHistory } from "@/lib/queries/uploads";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CampaignSection } from "./_components/CampaignSection";
 import { AdCreativeSection } from "./_components/AdCreativeSection";
+import { UploadCsvSection } from "./_components/UploadCsvSection";
 import {
   formatNumber,
   formatCurrencyShort,
@@ -33,9 +38,22 @@ export default async function ProjectDetailPage({ params }: PageProps) {
 
   await assertCanViewProject(user.id, user.role, project.id);
 
-  const [campaignStats, adStats] = await Promise.all([
+  // Check edit permission cho upload section
+  let canEdit = user.role === "admin";
+  if (!canEdit) {
+    const pu = await db.query.projectUsers.findFirst({
+      where: and(
+        eq(projectUsers.userId, user.id),
+        eq(projectUsers.projectId, project.id),
+      ),
+    });
+    canEdit = pu?.canEdit ?? false;
+  }
+
+  const [campaignStats, adStats, uploadHistory] = await Promise.all([
     getCampaignStats(project.id),
     getAdCreativeStats(project.id),
+    getUploadHistory(project.id, 10),
   ]);
 
   return (
@@ -93,6 +111,13 @@ export default async function ProjectDetailPage({ params }: PageProps) {
 
       {/* Ad Creative Section */}
       <AdCreativeSection ads={adStats} totalBudget={project.budget} />
+
+      {/* Upload CSV Section */}
+      <UploadCsvSection
+        projectId={project.id}
+        history={uploadHistory}
+        canEdit={canEdit}
+      />
     </div>
   );
 }

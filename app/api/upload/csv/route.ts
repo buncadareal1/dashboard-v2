@@ -1,10 +1,18 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { csvUploads } from "@/db/schema";
 import { requireSession } from "@/lib/auth/session";
 import { assertCanEditProject } from "@/lib/auth/guards";
 import { inngest } from "@/inngest/client";
+import { parseFacebookCsv } from "@/lib/csv/parser-facebook";
+import { parseBitrixCsv } from "@/lib/csv/parser-bitrix";
+import {
+  ingestFacebookRows,
+  ingestBitrixRows,
+} from "@/lib/csv/upsert-service";
+import { rebuildAllAggregatesForProject } from "@/lib/aggregates/builder";
 
 /**
  * POST /api/upload/csv
@@ -85,16 +93,85 @@ export async function POST(req: Request) {
     })
     .returning({ id: csvUploads.id });
 
-  // Enqueue Inngest
-  await inngest.send({
-    name: "csv/uploaded",
-    data: {
-      uploadId: upload.id,
-      projectId: parsed.data.projectId,
-      type: parsed.data.type,
-      fileContent: content,
-    },
-  });
+  // Strategy: nếu có Inngest key → enqueue async (production).
+  // Nếu không (dev) → process inline synchronously.
+  const hasInngest = !!process.env.INNGEST_EVENT_KEY;
 
-  return NextResponse.json({ uploadId: upload.id, status: "pending" });
+  if (hasInngest) {
+    await inngest.send({
+      name: "csv/uploaded",
+      data: {
+        uploadId: upload.id,
+        projectId: parsed.data.projectId,
+        type: parsed.data.type,
+        fileContent: content,
+      },
+    });
+    return NextResponse.json({ uploadId: upload.id, status: "pending" });
+  }
+
+  // Inline processing (dev mode) — block route until done
+  try {
+    await db
+      .update(csvUploads)
+      .set({ status: "processing" })
+      .where(eq(csvUploads.id, upload.id));
+
+    let summary: {
+      inserted: number;
+      updated: number;
+      conflicts: number;
+      pendingAliases: number;
+    };
+
+    if (parsed.data.type === "facebook") {
+      const result = parseFacebookCsv(content);
+      if (result.kind !== "ok") throw new Error(`Parse FB fail: ${result.kind}`);
+      summary = await ingestFacebookRows(
+        result.rows.map((r) => ({ ...r, source: "csv_facebook" as const })),
+        { projectId: parsed.data.projectId, csvUploadId: upload.id },
+      );
+    } else {
+      const result = parseBitrixCsv(content);
+      if (result.kind !== "ok")
+        throw new Error(`Parse Bitrix fail: ${result.kind}`);
+      summary = await ingestBitrixRows(
+        result.rows.map((r) => ({ ...r, source: "csv_bitrix" as const })),
+        { projectId: parsed.data.projectId, csvUploadId: upload.id },
+      );
+    }
+
+    await rebuildAllAggregatesForProject(parsed.data.projectId);
+
+    await db
+      .update(csvUploads)
+      .set({
+        status: "done",
+        parsedCount: summary.inserted + summary.updated,
+        errorCount: summary.conflicts,
+        finishedAt: new Date(),
+        errorLog: summary,
+      })
+      .where(eq(csvUploads.id, upload.id));
+
+    return NextResponse.json({
+      uploadId: upload.id,
+      status: "done",
+      summary,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    await db
+      .update(csvUploads)
+      .set({
+        status: "failed",
+        errorLog: { error: msg },
+        finishedAt: new Date(),
+      })
+      .where(eq(csvUploads.id, upload.id));
+    return NextResponse.json(
+      { error: msg, uploadId: upload.id },
+      { status: 500 },
+    );
+  }
 }

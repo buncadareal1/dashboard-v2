@@ -3,6 +3,8 @@ import { getSessionUser } from "@/lib/auth/session";
 import { db } from "@/db";
 import { users, projectUsers, projects } from "@/db/schema";
 import { eq, and, isNull, sql } from "drizzle-orm";
+import { UserFormDialog } from "./_components/UserFormDialog";
+import { UserActionsMenu } from "./_components/UserActionsMenu";
 import {
   Tabs,
   TabsContent,
@@ -32,7 +34,12 @@ export default async function SettingsPage() {
   // Load users + project assignments cho Quản lý team (admin only)
   const teamData = isAdmin
     ? await loadTeamData()
-    : { users: [], assignmentCounts: new Map<string, number>() };
+    : {
+        users: [],
+        assignmentCounts: new Map<string, number>(),
+        allProjects: [],
+        assignmentsByUser: new Map(),
+      };
 
   return (
     <div className="space-y-6">
@@ -103,6 +110,7 @@ export default async function SettingsPage() {
                       Quản lý user và phân quyền dự án
                     </p>
                   </div>
+                  <UserFormDialog />
                 </div>
               </CardHeader>
               <CardContent>
@@ -115,6 +123,7 @@ export default async function SettingsPage() {
                       <TableHead>Dự án được gán</TableHead>
                       <TableHead>Trạng thái</TableHead>
                       <TableHead>Last login</TableHead>
+                      <TableHead className="w-12"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -158,14 +167,25 @@ export default async function SettingsPage() {
                             ? new Date(u.lastLoginAt).toLocaleString("vi-VN")
                             : "Chưa login"}
                         </TableCell>
+                        <TableCell>
+                          <UserActionsMenu
+                            user={{
+                              id: u.id,
+                              name: u.name,
+                              email: u.email,
+                              role: u.role,
+                              active: u.active,
+                            }}
+                            projects={teamData.allProjects}
+                            existingAssignments={
+                              teamData.assignmentsByUser.get(u.id) ?? []
+                            }
+                          />
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
-                <p className="mt-4 text-xs text-muted-foreground">
-                  Form thêm user + AssignProjectDialog sẽ implement ở Phase 4
-                  (server actions).
-                </p>
               </CardContent>
             </Card>
           </TabsContent>
@@ -331,5 +351,64 @@ async function loadTeamData() {
     counts.map((c: { userId: string; count: number }) => [c.userId, c.count]),
   );
 
-  return { users: allUsers, assignmentCounts };
+  // All projects để show trong AssignDialog
+  const allProjects = await db
+    .select({
+      id: projects.id,
+      name: projects.name,
+      location: projects.location,
+    })
+    .from(projects)
+    .where(isNull(projects.deletedAt))
+    .orderBy(projects.name);
+
+  // Existing assignments per user
+  const allAssignments = await db
+    .select({
+      userId: projectUsers.userId,
+      projectId: projectUsers.projectId,
+      canView: projectUsers.canView,
+      canEdit: projectUsers.canEdit,
+      roleInProject: projectUsers.roleInProject,
+    })
+    .from(projectUsers)
+    .innerJoin(
+      projects,
+      and(
+        eq(projects.id, projectUsers.projectId),
+        isNull(projects.deletedAt),
+      ),
+    );
+  const assignmentsByUser = new Map<
+    string,
+    Array<{
+      projectId: string;
+      canView: boolean;
+      canEdit: boolean;
+      roleInProject: "digital" | "gdda";
+    }>
+  >();
+  for (const a of allAssignments as Array<{
+    userId: string;
+    projectId: string;
+    canView: boolean;
+    canEdit: boolean;
+    roleInProject: "digital" | "gdda";
+  }>) {
+    const arr = assignmentsByUser.get(a.userId) ?? [];
+    arr.push({
+      projectId: a.projectId,
+      canView: a.canView,
+      canEdit: a.canEdit,
+      roleInProject: a.roleInProject,
+    });
+    assignmentsByUser.set(a.userId, arr);
+  }
+
+  return {
+    users: allUsers,
+    assignmentCounts,
+    allProjects,
+    assignmentsByUser,
+  };
 }
