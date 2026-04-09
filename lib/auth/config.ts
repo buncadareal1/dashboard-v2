@@ -1,10 +1,13 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
+import Credentials from "next-auth/providers/credentials";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users, accounts, sessions, verificationTokens } from "@/db/schema";
 import type { UserRole } from "@/db/schema";
+
+const isDev = process.env.NODE_ENV !== "production";
 
 /**
  * Auth.js v5 với Google Workspace OAuth.
@@ -44,23 +47,57 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         },
       },
     }),
+    // DEV ONLY: Credentials provider để switch user nhanh khi test các role khác nhau.
+    // Chỉ enable khi NODE_ENV !== 'production'. KHÔNG có password — chỉ check email
+    // có trong DB + active. Production deploy sẽ tự loại provider này.
+    ...(isDev
+      ? [
+          Credentials({
+            id: "dev-switch",
+            name: "Dev Switch User",
+            credentials: {
+              email: { label: "Email", type: "email" },
+            },
+            async authorize(creds) {
+              const email = (creds?.email as string | undefined)?.toLowerCase();
+              if (!email) return null;
+              const user = await db.query.users.findFirst({
+                where: eq(users.email, email),
+              });
+              if (!user || !user.active) return null;
+              return {
+                id: user.id,
+                email: user.email,
+                name: user.name,
+                image: user.image,
+              };
+            },
+          }),
+        ]
+      : []),
   ],
   pages: {
     signIn: "/login",
     error: "/login",
   },
   callbacks: {
-    async signIn({ profile }) {
-      const email = profile?.email?.toLowerCase();
+    async signIn({ user, profile, account }) {
+      // Email có thể đến từ profile (Google) hoặc user (Credentials dev-switch)
+      const email = (profile?.email ?? user?.email)?.toLowerCase();
       if (!email) return "/login?error=no-email";
 
-      // 1. Domain check
-      const domain = email.split("@")[1];
-      if (
-        allowedDomains.length > 0 &&
-        (!domain || !allowedDomains.includes(domain))
-      ) {
-        return "/login?error=domain";
+      // Dev switch bypass domain check (already validated khi seed user)
+      const isDevSwitch = account?.provider === "dev-switch";
+
+      // 1. Domain check (chỉ cho Google)
+      if (!isDevSwitch) {
+        const domain = email.split("@")[1];
+        if (
+          allowedDomains.length > 0 &&
+          (!domain || !allowedDomains.includes(domain))
+        ) {
+          return "/login?error=domain";
+        }
       }
 
       // 2. Provisioned user check
@@ -70,11 +107,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (!dbUser) return "/login?error=not-provisioned";
       if (!dbUser.active) return "/login?error=deactivated";
 
-      // 3. Update last login + ảnh từ Google
+      // 3. Update last login (chỉ Google update image)
       await db
         .update(users)
         .set({
-          image: profile?.picture as string | null,
+          ...(profile?.picture
+            ? { image: profile.picture as string }
+            : {}),
           lastLoginAt: new Date(),
         })
         .where(eq(users.id, dbUser.id));

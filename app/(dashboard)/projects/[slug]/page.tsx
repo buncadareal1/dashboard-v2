@@ -25,6 +25,7 @@ interface PageProps {
 export default async function ProjectDetailPage({ params }: PageProps) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  if (user.role === "gdda") redirect("/report");
 
   const { slug } = await params;
   const project = await getProjectDetailBySlug(slug);

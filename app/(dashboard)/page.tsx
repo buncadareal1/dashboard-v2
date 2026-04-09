@@ -31,6 +31,7 @@ import {
 export default async function DashboardOverviewPage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  if (user.role === "gdda") redirect("/report");
 
   const [stats, projects] = await Promise.all([
     getDashboardOverviewStats({ userId: user.id, role: user.role }),

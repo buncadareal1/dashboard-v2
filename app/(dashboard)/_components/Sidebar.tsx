@@ -12,6 +12,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import type { UserRole } from "@/db/schema";
+import { SwitchUserWidget } from "./SwitchUserWidget";
 
 type NavItem = {
   label: string;
@@ -54,9 +55,14 @@ type SidebarProps = {
     image: string | null;
     role: UserRole;
   };
+  devUsers?: Array<{
+    email: string;
+    name: string;
+    role: UserRole;
+  }>;
 };
 
-export function Sidebar({ user }: SidebarProps) {
+export function Sidebar({ user, devUsers }: SidebarProps) {
   const pathname = usePathname();
   const visibleItems = NAV_ITEMS.filter((item) =>
     item.visibleFor.includes(user.role),
@@ -99,6 +105,11 @@ export function Sidebar({ user }: SidebarProps) {
           );
         })}
       </nav>
+
+      {/* DEV ONLY: Switch user widget — TRÊN user info để không bị Next.js dev indicator che */}
+      {devUsers && devUsers.length > 0 && (
+        <SwitchUserWidget currentEmail={user.email} users={devUsers} />
+      )}
 
       {/* User info */}
       <div className="border-t p-3">

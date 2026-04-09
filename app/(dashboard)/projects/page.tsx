@@ -17,6 +17,7 @@ interface PageProps {
 export default async function ProjectsListPage({ searchParams }: PageProps) {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  if (user.role === "gdda") redirect("/report");
 
   const params = await searchParams;
   const projects = await getProjectsForUser({
