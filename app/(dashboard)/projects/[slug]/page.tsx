@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { CampaignSection } from "./_components/CampaignSection";
 import { AdCreativeSection } from "./_components/AdCreativeSection";
 import { UploadCsvSection } from "./_components/UploadCsvSection";
+import { ProjectHeaderActions } from "./_components/ProjectHeaderActions";
 import {
   formatNumber,
   formatCurrencyShort,
@@ -67,7 +68,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
           <ArrowLeft className="h-4 w-4" />
           Quay lại
         </Link>
-        <div className="mt-2 flex items-start justify-between">
+        <div className="mt-2 flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-semibold">{project.name}</h1>
@@ -79,6 +80,9 @@ export default async function ProjectDetailPage({ params }: PageProps) {
               </p>
             )}
           </div>
+          {canEdit && (
+            <ProjectHeaderActions slug={project.slug} current={project.status} />
+          )}
         </div>
       </div>
 

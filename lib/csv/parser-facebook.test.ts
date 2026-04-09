@@ -80,6 +80,21 @@ describe("parseFacebookCsv", () => {
     expect(result.rows[1].fbLeadId).toBe("LID-2");
   });
 
+  it("extract amountSpent từ cột Insights nếu có", () => {
+    const header = `${SAMPLE_HEADER},Amount spent (VND)`;
+    const csv = `${header}\n05/02/2026,05/02/2026,Test,84912345678,,,Camp1,,,,LID-1,,,1250000`;
+    const result = parseFacebookCsv(csv);
+    if (result.kind !== "ok") throw new Error("expected ok");
+    expect(result.rows[0].amountSpent).toBe(1250000);
+  });
+
+  it("amountSpent = null khi file không có cột spend", () => {
+    const csv = `${SAMPLE_HEADER}\n05/02/2026,05/02/2026,Test,84912345678,,,Camp1,,,,LID-1,,`;
+    const result = parseFacebookCsv(csv);
+    if (result.kind !== "ok") throw new Error("expected ok");
+    expect(result.rows[0].amountSpent).toBeNull();
+  });
+
   it("FB_REQUIRED_HEADERS chứa các cột bắt buộc", () => {
     expect(FB_REQUIRED_HEADERS).toContain("Created Time");
     expect(FB_REQUIRED_HEADERS).toContain("Full Name");

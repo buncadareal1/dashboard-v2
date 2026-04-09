@@ -5,6 +5,7 @@ import { users, projectUsers, projects } from "@/db/schema";
 import { eq, and, isNull, sql } from "drizzle-orm";
 import { UserFormDialog } from "./_components/UserFormDialog";
 import { UserActionsMenu } from "./_components/UserActionsMenu";
+import { AccountForm } from "./_components/AccountForm";
 import {
   Tabs,
   TabsContent,
@@ -12,10 +13,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   Table,
   TableBody,
@@ -68,33 +66,15 @@ export default async function SettingsPage() {
             <CardHeader>
               <h2 className="text-base font-semibold">Thông tin cá nhân</h2>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-4">
-                <Avatar className="h-16 w-16">
-                  <AvatarFallback className="text-xl">
-                    {(user.name ?? user.email)?.[0]?.toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-medium">{user.name ?? "—"}</p>
-                  <p className="text-sm text-muted-foreground">{user.email}</p>
-                  <Badge className="mt-1">{user.role.toUpperCase()}</Badge>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <Field label="Họ và tên" defaultValue={user.name ?? ""} />
-                <Field
-                  label="Email"
-                  defaultValue={user.email}
-                  disabled
-                  hint="Email không thể đổi (auth qua Google)"
-                />
-                <Field label="Số điện thoại" placeholder="0901234567" />
-                <Field label="Vai trò" defaultValue={user.role} disabled />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Cập nhật profile sẽ khả dụng ở Phase 4 (server action).
-              </p>
+            <CardContent>
+              <AccountForm
+                defaultValues={{
+                  name: user.name ?? "",
+                  email: user.email,
+                  image: user.image ?? "",
+                  role: user.role,
+                }}
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -267,34 +247,6 @@ export default async function SettingsPage() {
           </Card>
         </TabsContent>
       </Tabs>
-    </div>
-  );
-}
-
-interface FieldProps {
-  label: string;
-  defaultValue?: string;
-  placeholder?: string;
-  disabled?: boolean;
-  hint?: string;
-}
-
-function Field({
-  label,
-  defaultValue,
-  placeholder,
-  disabled,
-  hint,
-}: FieldProps) {
-  return (
-    <div className="space-y-1.5">
-      <Label>{label}</Label>
-      <Input
-        defaultValue={defaultValue}
-        placeholder={placeholder}
-        disabled={disabled}
-      />
-      {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   );
 }

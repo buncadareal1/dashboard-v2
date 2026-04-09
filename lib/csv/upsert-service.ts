@@ -11,6 +11,7 @@ import {
   stages,
   stageAliases,
   matchConflicts,
+  projectCosts,
 } from "@/db/schema";
 import { matchLead, type LeadCandidate } from "./matcher";
 import { resolveStage } from "./stage-mapper";
@@ -418,7 +419,53 @@ export async function ingestFacebookRows(
     await db.insert(matchConflicts).values(conflictRows);
   }
 
+  // Step 7: Aggregate monthly spend from rows có amountSpent (Option A).
+  // Chỉ chạy khi có ít nhất 1 row có spend — guard để không đụng project_costs
+  // khi file FB Leads thuần (không có cột Insights).
+  await aggregateAndUpsertMonthlySpend(rows, ctx.projectId);
+
   return summary;
+}
+
+/**
+ * Build map<yearMonth, total> từ rows có amountSpent, rồi upsert vào project_costs.
+ * Dùng source='fb_api' (enum hiện tại không có 'csv' — coi spend CSV như
+ * snapshot từ FB Insights).
+ */
+async function aggregateAndUpsertMonthlySpend(
+  rows: FacebookLeadInput[],
+  projectId: string,
+): Promise<void> {
+  const monthMap = new Map<string, number>();
+  for (const r of rows) {
+    if (r.amountSpent == null || r.amountSpent <= 0) continue;
+    if (!r.fbCreatedAt) continue;
+    const d = r.fbCreatedAt;
+    const yyyy = d.getUTCFullYear();
+    const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+    const key = `${yyyy}-${mm}-01`;
+    monthMap.set(key, (monthMap.get(key) ?? 0) + r.amountSpent);
+  }
+  if (monthMap.size === 0) return;
+
+  for (const [periodDate, total] of monthMap) {
+    await db
+      .insert(projectCosts)
+      .values({
+        projectId,
+        periodDate,
+        amount: String(total),
+        source: "fb_api",
+      })
+      .onConflictDoUpdate({
+        target: [
+          projectCosts.projectId,
+          projectCosts.periodDate,
+          projectCosts.source,
+        ],
+        set: { amount: String(total) },
+      });
+  }
 }
 
 /**

@@ -20,6 +20,7 @@ export type FacebookLeadInput = {
   adName: string | null;
   formName: string | null;
   fbCreatedAt: Date | null;
+  amountSpent?: number | null;
   formAnswers: Record<string, string>;
 };
 

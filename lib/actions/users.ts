@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users, projectUsers } from "@/db/schema";
 import { assertRole } from "@/lib/auth/guards";
+import { requireSession } from "@/lib/auth/session";
 
 const CreateUserSchema = z.object({
   name: z.string().min(1, "Họ tên không được rỗng"),
@@ -58,6 +59,35 @@ export async function activateUserAction(userId: string) {
   await assertRole(["admin"]);
   await db.update(users).set({ active: true }).where(eq(users.id, userId));
   revalidatePath("/settings");
+}
+
+const UpdateAccountSchema = z.object({
+  name: z.string().min(1, "Họ tên không được rỗng").max(120),
+  image: z
+    .string()
+    .url("Ảnh đại diện phải là URL hợp lệ")
+    .max(500)
+    .optional()
+    .or(z.literal("")),
+});
+
+export async function updateAccountAction(
+  input: z.infer<typeof UpdateAccountSchema>,
+) {
+  const session = await requireSession();
+  const parsed = UpdateAccountSchema.parse(input);
+
+  await db
+    .update(users)
+    .set({
+      name: parsed.name,
+      image: parsed.image ? parsed.image : null,
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, session.id));
+
+  revalidatePath("/settings");
+  return { success: true as const };
 }
 
 const AssignSchema = z.object({

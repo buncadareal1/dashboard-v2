@@ -6,16 +6,58 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { createProjectAction } from "@/lib/actions/projects";
+import { MultiSelect, type MultiSelectOption } from "@/components/ui/multi-select";
+import {
+  createProjectAction,
+  updateProjectAction,
+  type CreateProjectInput,
+  type UpdateProjectInput,
+} from "@/lib/actions/projects";
+
+export interface ProjectFormDefaults {
+  slug?: string;
+  name: string;
+  location: string;
+  fbAdAccountId: string;
+  googleAdsId: string;
+  fanpageNames: string;
+  digitalUserIds: string[];
+  gddaUserIds: string[];
+}
+
+interface ProjectFormProps {
+  mode?: "create" | "edit";
+  defaultValues?: ProjectFormDefaults;
+  digitalOptions: MultiSelectOption[];
+  gddaOptions: MultiSelectOption[];
+}
+
+const EMPTY_DEFAULTS: ProjectFormDefaults = {
+  name: "",
+  location: "",
+  fbAdAccountId: "",
+  googleAdsId: "",
+  fanpageNames: "",
+  digitalUserIds: [],
+  gddaUserIds: [],
+};
 
 /**
- * Form đăng dự án mới — không dùng react-hook-form (form đơn giản, dùng native).
- * Gọi server action createProjectAction.
+ * Form tạo + sửa dự án — native form + server action.
  */
-export function ProjectForm() {
+export function ProjectForm({
+  mode = "create",
+  defaultValues,
+  digitalOptions,
+  gddaOptions,
+}: ProjectFormProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const initial = defaultValues ?? EMPTY_DEFAULTS;
+  const [digitalIds, setDigitalIds] = useState<string[]>(initial.digitalUserIds);
+  const [gddaIds, setGddaIds] = useState<string[]>(initial.gddaUserIds);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -28,32 +70,43 @@ export function ProjectForm() {
       .map((s) => s.trim())
       .filter(Boolean);
 
-    const input = {
+    const base = {
       name: (formData.get("name") as string)?.trim() ?? "",
       location: (formData.get("location") as string)?.trim() || undefined,
-      budget: parseFloat((formData.get("budget") as string) ?? "0"),
       fbAdAccountId:
         (formData.get("fbAdAccountId") as string)?.trim() || undefined,
       googleAdsId:
         (formData.get("googleAdsId") as string)?.trim() || undefined,
       fanpageNames,
-    };
+      digitalUserIds: digitalIds,
+      gddaUserIds: gddaIds,
+    } satisfies CreateProjectInput & UpdateProjectInput;
 
     startTransition(async () => {
       try {
-        await createProjectAction(input);
-        // Server action redirects on success — code below chỉ chạy khi error.
+        if (mode === "edit") {
+          if (!initial.slug) throw new Error("Thiếu slug để cập nhật");
+          await updateProjectAction(initial.slug, base);
+          toast.success("Đã lưu thay đổi");
+          router.push(`/projects/${initial.slug}`);
+          router.refresh();
+        } else {
+          await createProjectAction(base);
+        }
       } catch (err) {
-        // Rethrow NEXT_REDIRECT cho Next.js xử lý
         if (err && typeof err === "object" && "digest" in err) {
           throw err;
         }
-        const msg = err instanceof Error ? err.message : "Tạo dự án thất bại";
+        const msg =
+          err instanceof Error
+            ? err.message
+            : mode === "edit"
+              ? "Lưu thay đổi thất bại"
+              : "Tạo dự án thất bại";
         toast.error(msg);
         setErrors({ form: msg });
       }
     });
-    void router; // suppress unused warning, kept for future routing
   }
 
   return (
@@ -63,35 +116,55 @@ export function ProjectForm() {
         name="name"
         required
         placeholder="VD: Vinhomes Grand Park"
+        defaultValue={initial.name}
         error={errors.name}
       />
       <Field
         label="Vị trí"
         name="location"
         placeholder="VD: Quận 9, TP.HCM"
-      />
-      <Field
-        label="Ngân sách (VND)"
-        name="budget"
-        type="number"
-        required
-        placeholder="850000000"
+        defaultValue={initial.location}
       />
       <Field
         label="Facebook Ad Account ID"
         name="fbAdAccountId"
         placeholder="VD: act_1234567890"
+        defaultValue={initial.fbAdAccountId}
       />
       <Field
         label="Google Ads Account (optional)"
         name="googleAdsId"
         placeholder="VD: 123-456-7890"
+        defaultValue={initial.googleAdsId}
       />
       <Field
         label="Fanpages (phân tách bằng dấu phẩy)"
         name="fanpageNames"
         placeholder="FB Vinhomes, FB Sun Group"
+        defaultValue={initial.fanpageNames}
       />
+
+      <div className="space-y-1.5">
+        <Label>Digital phụ trách</Label>
+        <MultiSelect
+          name="digitalUserIds"
+          options={digitalOptions}
+          value={digitalIds}
+          onChange={setDigitalIds}
+          placeholder="Chọn digital..."
+        />
+      </div>
+
+      <div className="space-y-1.5">
+        <Label>GĐ Dự án (GDDA)</Label>
+        <MultiSelect
+          name="gddaUserIds"
+          options={gddaOptions}
+          value={gddaIds}
+          onChange={setGddaIds}
+          placeholder="Chọn GDDA..."
+        />
+      </div>
 
       {errors.form && (
         <p className="text-sm text-destructive">{errors.form}</p>
@@ -101,12 +174,24 @@ export function ProjectForm() {
         <Button
           type="button"
           variant="outline"
-          onClick={() => router.push("/projects")}
+          onClick={() =>
+            router.push(
+              mode === "edit" && initial.slug
+                ? `/projects/${initial.slug}`
+                : "/projects",
+            )
+          }
         >
           Huỷ
         </Button>
         <Button type="submit" disabled={pending}>
-          {pending ? "Đang tạo..." : "Tạo dự án"}
+          {pending
+            ? mode === "edit"
+              ? "Đang lưu..."
+              : "Đang tạo..."
+            : mode === "edit"
+              ? "Lưu thay đổi"
+              : "Tạo dự án"}
         </Button>
       </div>
     </form>
@@ -119,6 +204,7 @@ interface FieldProps {
   type?: string;
   required?: boolean;
   placeholder?: string;
+  defaultValue?: string;
   error?: string;
 }
 
@@ -128,6 +214,7 @@ function Field({
   type = "text",
   required,
   placeholder,
+  defaultValue,
   error,
 }: FieldProps) {
   return (
@@ -142,6 +229,7 @@ function Field({
         type={type}
         required={required}
         placeholder={placeholder}
+        defaultValue={defaultValue}
       />
       {error && <p className="text-xs text-destructive">{error}</p>}
     </div>

@@ -21,10 +21,32 @@ export const FB_REQUIRED_HEADERS = [
   "Lead ID",
 ] as const;
 
+/**
+ * Optional "amount spent" columns — FB Ads Manager Insights export đôi khi có.
+ * Guarded: nếu file không có thì formAnswers vẫn giữ nguyên, spend = null.
+ */
+const FB_SPENT_HEADERS = [
+  "Amount spent (VND)",
+  "Amount spent",
+  "Số tiền đã chi tiêu (VND)",
+  "Số tiền đã chi tiêu",
+  "Spend",
+] as const;
+
 const FB_KNOWN_COLUMNS = new Set<string>([
   ...FB_REQUIRED_HEADERS,
+  ...FB_SPENT_HEADERS,
   "Tình trạng", // ignored — stage lấy từ Bitrix
 ]);
+
+function parseSpentNumber(raw: string | undefined): number | null {
+  if (!raw) return null;
+  // Strip thousands separator (. or ,) — keep decimals ambiguous; FB VND = integer
+  const cleaned = raw.replace(/[^\d.-]/g, "").replace(/,/g, "");
+  if (!cleaned) return null;
+  const n = parseFloat(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
 
 export type FacebookRow = {
   fullName: string;
@@ -38,6 +60,8 @@ export type FacebookRow = {
   adName: string | null;
   formName: string | null;
   fbCreatedAt: Date | null;
+  /** Amount spent (VND) từ cột Insights nếu có — null nếu file không chứa */
+  amountSpent: number | null;
   /** Custom form fields — dynamic key set per form */
   formAnswers: Record<string, string>;
 };
@@ -86,6 +110,9 @@ export function parseFacebookCsv(input: string): ParseFbResult {
     return { kind: "invalid-header", missing: [...missing] };
   }
 
+  // Detect which spent column is present (ưu tiên thứ tự trong FB_SPENT_HEADERS)
+  const spentCol = FB_SPENT_HEADERS.find((h) => headers.includes(h)) ?? null;
+
   const rows: FacebookRow[] = parsed.data.map((row) => {
     const fullName = row["Full Name"]?.trim() ?? "";
     const phone = row["Phone"]?.trim() || null;
@@ -111,6 +138,7 @@ export function parseFacebookCsv(input: string): ParseFbResult {
       adName: row["Ad"]?.trim() || null,
       formName: row["Form Name"]?.trim() || null,
       fbCreatedAt: parseVnDate(row["Created Time"]),
+      amountSpent: spentCol ? parseSpentNumber(row[spentCol]) : null,
       formAnswers,
     };
   });
