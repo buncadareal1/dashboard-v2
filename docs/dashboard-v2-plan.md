@@ -1529,7 +1529,19 @@ getUserProjects(userId): Promise<UserProjectAssignment[]>
 
 ## 10. Task breakdown theo phase
 
-### Phase 0 — Setup (nền tảng)
+> **STATUS (cập nhật 09/04/2026)** — xem `docs/HANDOFF.md` để biết chi tiết
+>
+> - ✅ Phase 0 Setup
+> - ✅ Phase 1 Schema + Auth + RBAC
+> - ✅ Phase 2 CSV pipeline (53 unit tests + integration test pass)
+> - ✅ Phase 3 UI 8 routes (Login + Dashboard + Projects list/detail/new + Report split + Settings)
+> - ✅ Phase 4 CRUD bonus (Upload CSV + User mgmt + AssignProject + Conflicts + DEV SwitchUserWidget)
+> - ⏸ Phase 5 Edit project — TODO
+> - ⏸ Phase 6 Snapshot/Aggregate cron — TODO
+> - ⏸ Phase 7 Polish — TODO
+> - ⏸ Phase 8 Phase 2 webhook hook — TODO
+
+### Phase 0 — Setup (nền tảng) ✅
 - [ ] `pnpm create next-app dashboard-v2 --typescript --tailwind --app`
 - [ ] Init shadcn/ui, add primitives: button, card, table, dialog, form, input, select, tabs, badge, dropdown-menu, date-range-picker, sonner
 - [ ] Link Vercel project, tạo Neon DB qua Vercel Marketplace
