@@ -1,6 +1,7 @@
 # HANDOFF — Dashboard Lead BĐS
 
 > **Ngày**: 2026-04-09
+> **Production URL**: https://dashboard-v2-one-vert.vercel.app (đã deploy, login Google OK)
 > **Mục đích**: tài liệu để session Claude Code mới có thể tiếp tục dự án mà không hiểu nhầm context.
 
 ---
@@ -40,10 +41,10 @@ phức tạp.
 | **2** | CSV pipeline (parser FB/Bitrix + matcher + stage-mapper + upsert + Inngest fn) | ✅ DONE | `npm test` → 53/53 pass |
 | **3** | UI 8 trang (Login + Layout + Dashboard + Projects list/detail/new + Report split admin/gdda + Settings 5 sub-tabs) | ✅ DONE | Browser test với webdev@smartland.vn |
 | **4** | CRUD bonus (Upload CSV UI + UserFormDialog + AssignProjectDialog + Conflicts page + DEV SwitchUserWidget) | ✅ DONE | End-to-end browser test |
-| **5** | Edit project (form chỉnh sửa metadata + reassign users) | ⏸ TODO | — |
-| **6** | Inngest cron (snapshot nightly + archive > 90 ngày + auto rebuild aggregates) | ⏸ TODO | — |
-| **7** | Polish (skeleton loading, empty states, error boundary, mobile responsive, i18n VN nhất quán) | ⏸ TODO | — |
-| **8** | Phase 2 webhook hook (FB Lead Ads + Bitrix outbound webhook adapter stub) | ⏸ TODO | — |
+| **5** | Edit project (form chỉnh sửa + reassign users + multi-select + CSV cost extraction + Settings Account form) | ✅ DONE | Browser test trên prod |
+| **6** | Inngest cron (nightly-snapshot + nightly-archive + rebuild-aggregates) | ✅ DONE (code) | `/api/inngest` function_count:4; chờ Inngest Cloud account để bật cron prod |
+| **7** | Polish (loading.tsx skeleton, error boundary, EmptyState, i18n VN format, fix hydration mismatch, a11y) | ✅ DONE (mobile responsive intentionally skipped) | Browser console clean |
+| **8** | Phase 2 webhook hook (FB Lead Ads + Bitrix outbound webhook adapter stub) | ⏸ TODO | Chờ FB App Review |
 
 > **Lưu ý mapping**: Phase trong code/commit khác Phase trong `dashboard-v2-plan.md`.
 > Trong plan gốc: Phase 4 = Report Data, Phase 5 = Settings.
@@ -150,7 +151,11 @@ GOOGLE_CLIENT_SECRET=...
 ALLOWED_EMAIL_DOMAIN=smartland.vn,smartrealtors.vn,smartproperty.vn
 INNGEST_EVENT_KEY=                          # CHƯA SET → upload fallback inline
 INNGEST_SIGNING_KEY=
+INNGEST_DEV=1                               # local dev only — Inngest v4 default cloud mode
 ```
+
+> Vercel Production env đã set: `AUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `ALLOWED_EMAIL_DOMAIN`, `DATABASE_URL*` (auto từ Neon Marketplace).
+> **Chưa set trên Vercel**: `INNGEST_EVENT_KEY`, `INNGEST_SIGNING_KEY` → cron không chạy production cho tới khi có Inngest Cloud account.
 
 > ⚠️ **Quan trọng**: nếu env file thiếu, chạy `vercel env pull .env.local --yes` (project đã link với Vercel).
 
@@ -235,50 +240,38 @@ npm run dev
 
 ## 🎯 Bước tiếp theo được khuyến nghị
 
-### Option 1: Phase 7 — Polish (recommend đầu tiên)
-- [ ] `loading.tsx` cho mọi route (skeleton)
-- [ ] `error.tsx` error boundary
-- [ ] Empty state component dùng chung
-- [ ] Mobile responsive: ít nhất Report Data + Settings xem được trên tablet
-- [ ] i18n VN nhất quán: format số `1.247`, currency `850M`/`1.2B`, ngày `09/04/2026`
-- [ ] Sửa hydration mismatch trong Topbar (đã thấy warning về `data-slot` mismatch)
-- [ ] Accessibility: aria-label, focus visible, keyboard nav
-- [ ] Stage badge trong LeadDetailTable dùng inline style — chuyển sang Badge variants
+### Option 1: Inngest Cloud setup (production cron)
+- [ ] Tạo Inngest Cloud account (free tier OK) tại https://app.inngest.com
+- [ ] Lấy `INNGEST_EVENT_KEY` + `INNGEST_SIGNING_KEY`
+- [ ] `vercel env add INNGEST_EVENT_KEY production "" --value <key> -y` + signing key
+- [ ] `vercel deploy --prod` để runtime pick up env mới
+- [ ] Verify cron `nightly-snapshot` chạy lúc 00:00 VN qua Inngest dashboard
 
-### Option 2: Phase 6 — Inngest cron (production maintenance)
-- [ ] Cài Inngest Cloud account, set 2 env vars
-- [ ] `inngest/functions/nightly-snapshot.ts` — copy leads → lead_snapshots cho ngày hôm qua
-- [ ] `inngest/functions/nightly-archive.ts` — rollup snapshot > 90 ngày → monthly_aggregates, xoá raw
-- [ ] `inngest/functions/rebuild-aggregates.ts` — listen event `aggregate/rebuild`, chạy `rebuildAllAggregatesForProject`
-- [ ] Register cron schedules `0 17 * * *` (= 0h VN)
-- [ ] Switch upload route sang async mode (xoá fallback inline) khi Inngest sẵn sàng
-
-### Option 3: Phase 5 — Edit project + chỉnh sửa user
-- [ ] `/projects/[slug]/edit/page.tsx` — reuse ProjectForm với `defaultValues`
-- [ ] `updateProjectAction` — admin hoặc digital can_edit
-- [ ] `setProjectStatus` — đổi running/warning/paused
-- [ ] `setProjectCost` — nhập chi phí tháng
-- [ ] Form Account Settings có Save button (hiện chỉ static)
-
-### Option 4: Phase 8 — Hook Phase 2 webhook
+### Option 2: Phase 8 — Webhook FB/Bitrix
 - [ ] Stub `app/api/webhooks/facebook/route.ts` + `bitrix/route.ts`
-- [ ] Implement `LeadSource` adapter pattern cho webhook payload
+- [ ] Implement `LeadSource` adapter pattern cho webhook payload (`lib/adapters/lead-source.ts` đã có interface)
 - [ ] SSE handler `app/api/sse/leads/route.ts`
 - [ ] `lib/realtime/notify.ts` với Neon `LISTEN/NOTIFY`
 - [ ] Document `docs/phase-2.md` với Meta App Review checklist
+- [ ] Cần: FB App Review (~vài tuần) + Bitrix outbound webhook config
 
-### Option 5: Deploy Vercel preview
-- [ ] `vercel` link → preview deploy
-- [ ] Set Google OAuth redirect URI cho preview domain
-- [ ] Set env vars trong Vercel dashboard
-- [ ] Test login + flow end-to-end trên preview URL
-
-### Option 6: Fix các issue nhỏ deferred
-- [ ] ProjectCard `manager` luôn null — join `project_users` lấy primary digital
-- [ ] Form đăng dự án mới chưa có multi-select user (digitalUserIds, gddaUserIds)
+### Option 3: Issues nhỏ deferred
+- [ ] `ProjectCard.manager` luôn null — join `project_users` lấy primary digital (lib/queries/projects.ts:159)
 - [ ] Sub-menu Conflicts trong Sidebar cho admin (hiện phải gõ URL `/conflicts`)
 - [ ] Dropdown sort + Google Ads tab trong AdCreativeSection
 - [ ] Click row trong campaign table → drill down adsets
+- [ ] `getProjectDetailBySlug` đọc `projects.budget` thay vì sum `project_costs` → stat card "Tổng ngân sách" lệch list view
+- [ ] `processCsvUpload` rebuild aggregates dùng `new Date()` thay vì detect VN dates trong rows → upload CSV historical bị stale daily_aggregates
+- [ ] `rebuildAllAggregatesForProject` không có incremental mode (full DELETE+INSERT mỗi lần) — refactor khi data lớn
+- [ ] Topbar avatar hardcode "U" thay vì initial của user thật
+- [ ] `monthly_aggregates` không có cột `fanpage_id` → archive drop fanpage dimension. Nếu cần monthly report theo fanpage, thêm cột + update unique key
+- [ ] `project_costs.source` enum chỉ có `'manual'|'fb_api'`, không có `'csv'` → cost extraction từ CSV gắn `'fb_api'` (cần phân biệt thì migrate enum)
+
+### Option 4: Production hardening
+- [ ] Set up Vercel Deployment Protection cho preview deploys (tránh leak)
+- [ ] Setup error monitoring (Sentry hoặc Vercel Analytics)
+- [ ] Backup strategy cho Neon DB (snapshot định kỳ)
+- [ ] Rate limiting cho `/api/upload/csv` (tránh abuse)
 
 ---
 
