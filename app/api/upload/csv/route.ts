@@ -5,6 +5,7 @@ import { db } from "@/db";
 import { csvUploads } from "@/db/schema";
 import { requireSession } from "@/lib/auth/session";
 import { assertCanEditProject } from "@/lib/auth/guards";
+import { rateLimit } from "@/lib/utils/rate-limit";
 import { inngest } from "@/inngest/client";
 import { parseFacebookCsv } from "@/lib/csv/parser-facebook";
 import { parseBitrixCsv } from "@/lib/csv/parser-bitrix";
@@ -33,6 +34,14 @@ const MAX_SIZE = 4 * 1024 * 1024; // 4MB Vercel limit
 
 export async function POST(req: Request) {
   const user = await requireSession();
+
+  const { ok, remaining } = rateLimit(`upload:${user.id}`, 10, 3600000);
+  if (!ok) {
+    return NextResponse.json(
+      { error: "Bạn đã gửi quá nhiều tin nhắn. Vui lòng thử lại sau." },
+      { status: 429 },
+    );
+  }
 
   const formData = await req.formData();
   const file = formData.get("file");
@@ -182,6 +191,7 @@ export async function POST(req: Request) {
       summary,
     });
   } catch (err) {
+    console.error("[upload-csv]", err);
     const msg = err instanceof Error ? err.message : "Unknown error";
     await db
       .update(csvUploads)
@@ -192,7 +202,7 @@ export async function POST(req: Request) {
       })
       .where(eq(csvUploads.id, upload.id));
     return NextResponse.json(
-      { error: msg, uploadId: upload.id },
+      { error: "Upload thất bại. Vui lòng thử lại.", uploadId: upload.id },
       { status: 500 },
     );
   }

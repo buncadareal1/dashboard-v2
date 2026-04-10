@@ -18,6 +18,11 @@ export async function saveConversationAction(input: {
 }) {
   const user = await requireSession();
 
+  if (input.messages.length > 200) throw new Error("Too many messages");
+  if (input.title.length > 100) throw new Error("Title too long");
+  if (input.messages.some((m) => m.content.length > 50000))
+    throw new Error("Message content too long");
+
   let conversationId = input.conversationId;
 
   if (!conversationId) {

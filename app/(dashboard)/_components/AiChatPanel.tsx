@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import {
   saveConversationAction,
   getConversationsAction,
@@ -85,18 +86,26 @@ export function AiChatPanel({ open, onOpenChange }: AiChatPanelProps) {
           conversationId,
           title,
           messages: textMessages,
-        }).then((result) => {
-          if (!conversationId) setConversationId(result.conversationId);
-        });
+        })
+          .then((result) => {
+            if (!conversationId) setConversationId(result.conversationId);
+          })
+          .catch(() => {
+            toast.error("Không thể lưu cuộc trò chuyện");
+          });
       }
     }
   }, [status, messages, conversationId]);
 
   const loadConversations = useCallback(async () => {
-    const convos = await getConversationsAction();
-    setConversations(
-      convos.map((c) => ({ ...c, updatedAt: new Date(c.updatedAt) })),
-    );
+    try {
+      const convos = await getConversationsAction();
+      setConversations(
+        convos.map((c) => ({ ...c, updatedAt: new Date(c.updatedAt) })),
+      );
+    } catch {
+      toast.error("Không thể tải lịch sử trò chuyện");
+    }
   }, []);
 
   function handleOpenHistory() {
@@ -105,23 +114,31 @@ export function AiChatPanel({ open, onOpenChange }: AiChatPanelProps) {
   }
 
   async function handleLoadConversation(id: string) {
-    const data = await getConversationMessagesAction(id);
-    setConversationId(id);
-    setMessages(
-      data.messages.map((m) => ({
-        id: m.id,
-        role: m.role as "user" | "assistant",
-        parts: [{ type: "text" as const, text: m.content }],
-        createdAt: new Date(m.createdAt),
-      })),
-    );
-    setShowHistory(false);
+    try {
+      const data = await getConversationMessagesAction(id);
+      setConversationId(id);
+      setMessages(
+        data.messages.map((m) => ({
+          id: m.id,
+          role: m.role as "user" | "assistant",
+          parts: [{ type: "text" as const, text: m.content }],
+          createdAt: new Date(m.createdAt),
+        })),
+      );
+      setShowHistory(false);
+    } catch {
+      toast.error("Không thể tải cuộc trò chuyện");
+    }
   }
 
   async function handleDeleteConversation(id: string) {
-    await deleteConversationAction(id);
-    setConversations((prev) => prev.filter((c) => c.id !== id));
-    if (conversationId === id) handleNewChat();
+    try {
+      await deleteConversationAction(id);
+      setConversations((prev) => prev.filter((c) => c.id !== id));
+      if (conversationId === id) handleNewChat();
+    } catch {
+      toast.error("Không thể xoá cuộc trò chuyện");
+    }
   }
 
   function handleNewChat() {

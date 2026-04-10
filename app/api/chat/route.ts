@@ -8,12 +8,21 @@ import { google } from "@ai-sdk/google";
 import { getSessionUser } from "@/lib/auth/session";
 import { getAccessibleProjectIds } from "@/lib/auth/guards";
 import { createDashboardTools } from "@/lib/ai/tools";
+import { rateLimit } from "@/lib/utils/rate-limit";
 
 export async function POST(req: Request) {
   try {
     const user = await getSessionUser();
     if (!user) {
       return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { ok, remaining } = rateLimit(`chat:${user.id}`, 20, 3600000);
+    if (!ok) {
+      return Response.json(
+        { error: "Bạn đã gửi quá nhiều tin nhắn. Vui lòng thử lại sau." },
+        { status: 429 },
+      );
     }
 
     const { messages }: { messages: UIMessage[] } = await req.json();
@@ -48,8 +57,10 @@ User hiện tại: ${user.name ?? user.email} (role: ${user.role})`,
       originalMessages: messages,
     });
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "AI service unavailable";
-    return Response.json({ error: message }, { status: 500 });
+    console.error("[chat]", err);
+    return Response.json(
+      { error: "AI tạm thời không khả dụng. Vui lòng thử lại sau." },
+      { status: 500 },
+    );
   }
 }

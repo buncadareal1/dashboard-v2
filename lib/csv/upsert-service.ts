@@ -790,12 +790,11 @@ export async function snapshotLeadsForDate(
       current_stage_id,
       current_employee_id,
       fanpage_id,
-      to_jsonb(leads.*)
+      NULL
     FROM leads
     WHERE project_id = ${projectId}
     ON CONFLICT (snapshot_date, lead_id) DO UPDATE
-    SET raw = EXCLUDED.raw,
-        stage_id = EXCLUDED.stage_id,
+    SET stage_id = EXCLUDED.stage_id,
         employee_id = EXCLUDED.employee_id
   `);
   // Drizzle execute trả về result với rowCount

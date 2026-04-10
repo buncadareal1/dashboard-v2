@@ -122,22 +122,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return true;
     },
 
-    async jwt({ token, user }) {
-      // Lần đầu sign in: attach role + id từ DB
-      if (user?.email) {
+    async jwt({ token }) {
+      // Re-fetch user mỗi lần refresh để check active + role mới nhất
+      if (token.sub) {
         const dbUser = await db.query.users.findFirst({
-          where: eq(users.email, user.email),
+          where: eq(users.id, token.sub),
         });
         if (dbUser) {
-          token.sub = dbUser.id;
           token.role = dbUser.role;
           token.active = dbUser.active;
+        } else {
+          // User bị xoá khỏi DB
+          token.active = false;
         }
       }
       return token;
     },
 
     async session({ session, token }) {
+      // Block deactivated user
+      if (token.active === false) {
+        throw new Error("DEACTIVATED");
+      }
       if (session.user) {
         session.user.id = token.sub as string;
         session.user.role = token.role as UserRole;
