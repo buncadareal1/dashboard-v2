@@ -17,13 +17,15 @@ từ Facebook Ads + Bitrix24 cho công ty Smartland.
 2. docs/dashboard-v2-plan.md — master plan đầy đủ (~1700 dòng)
 3. AGENTS.md + CLAUDE.md ở root — quy tắc dự án
 
-Trạng thái hiện tại: Phase 0-4 đã code xong và verify trên DB thật.
-Dev server có thể start bằng `npm run dev` (Inngest fallback inline khi
-không có INNGEST_EVENT_KEY). Login Google OAuth dùng email
-webdev@smartland.vn (admin role).
+Trạng thái: Phase 0-7 DONE + AI Chat + performance fix.
+Đang chuẩn bị Phase 2 (Facebook API integration).
+Đọc docs/PHASE-2-PLAN.md để biết chi tiết Phase 2.
 
-Tôi muốn tiếp tục: <ĐIỀN MỤC TIÊU CỤ THỂ — VD: "Phase 7 polish",
-"Phase 6 cron jobs", "fix bug X", "deploy lên Vercel preview">.
+Kiến trúc tương lai: Hono API trên VPS + Postgres local (sau Phase 2).
+VPS spec: 2 core Xeon Gold 6133, 4GB RAM.
+
+Tôi muốn tiếp tục: <ĐIỀN MỤC TIÊU — VD: "Phase 2.0 schema FB insights",
+"Phase 2.1 sync insights", "migrate Hono VPS", "fix bug X">.
 
 Trước khi code: kiểm tra git log, đọc HANDOFF.md mục "Bước tiếp theo
 được khuyến nghị", confirm với tôi plan trước khi thực thi nếu task
@@ -44,7 +46,9 @@ phức tạp.
 | **5** | Edit project (form chỉnh sửa + reassign users + multi-select + CSV cost extraction + Settings Account form) | ✅ DONE | Browser test trên prod |
 | **6** | Inngest cron (nightly-snapshot + nightly-archive + rebuild-aggregates) | ✅ DONE (code) | `/api/inngest` function_count:4; chờ Inngest Cloud account để bật cron prod |
 | **7** | Polish (loading.tsx skeleton, error boundary, EmptyState, i18n VN format, fix hydration mismatch, a11y) | ✅ DONE (mobile responsive intentionally skipped) | Browser console clean |
-| **8** | Phase 2 webhook hook (FB Lead Ads + Bitrix outbound webhook adapter stub) | ⏸ TODO | Chờ FB App Review |
+| **8** | AI Chat (Gemini 2.5 Flash + 5 RBAC tools + history + slide-out panel) | ✅ DONE | Browser test |
+| **9** | Security + Performance fixes (rate limit, JWT refresh, parallel queries, cache dedup) | ✅ DONE | 56/56 tests pass |
+| **P2** | **Facebook API Integration** — xem `docs/PHASE-2-PLAN.md` | ⏸ NEXT | Chờ FB App Review + token |
 
 > **Lưu ý mapping**: Phase trong code/commit khác Phase trong `dashboard-v2-plan.md`.
 > Trong plan gốc: Phase 4 = Report Data, Phase 5 = Settings.
