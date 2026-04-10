@@ -49,28 +49,28 @@ export function formatDateTimeVN(d: Date | string | null | undefined): string {
 }
 
 /**
- * Format tiền VND viết tắt: M (triệu), B (tỷ), K (nghìn).
- * Frontend mẫu dùng style này.
+ * Format tiền VND viết tắt có đơn vị đ.
  *
  * @example
- * formatCurrencyShort(850_000_000) // "850M"
- * formatCurrencyShort(1_245_000_000) // "1.2B"
- * formatCurrencyShort(682_000) // "682K"
+ * formatCurrencyShort(850_000_000) // "850 triệu đ"
+ * formatCurrencyShort(1_245_000_000) // "1,2 tỷ đ"
+ * formatCurrencyShort(682_000) // "682K đ"
+ * formatCurrencyShort(1500) // "1.500 đ"
  */
 export function formatCurrencyShort(n: number | null | undefined): string {
   if (n == null) return "—";
   if (n >= 1_000_000_000) {
     const b = n / 1_000_000_000;
-    return `${b.toFixed(b >= 10 ? 0 : 1).replace(/\.0$/, "")}B`;
+    return `${b.toFixed(b >= 10 ? 0 : 1).replace(/\.0$/, "").replace(".", ",")} tỷ đ`;
   }
   if (n >= 1_000_000) {
     const m = n / 1_000_000;
-    return `${m.toFixed(m >= 10 ? 0 : 1).replace(/\.0$/, "")}M`;
+    return `${m.toFixed(m >= 10 ? 0 : 1).replace(/\.0$/, "").replace(".", ",")} triệu đ`;
   }
   if (n >= 1_000) {
-    return `${Math.round(n / 1_000)}K`;
+    return `${VND.format(Math.round(n))} đ`;
   }
-  return n.toString();
+  return `${VND.format(n)} đ`;
 }
 
 /**
