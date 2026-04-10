@@ -81,7 +81,7 @@ export default async function ProjectDetailPage({ params }: PageProps) {
             )}
           </div>
           {canEdit && (
-            <ProjectHeaderActions slug={project.slug} current={project.status} />
+            <ProjectHeaderActions slug={project.slug} projectId={project.id} current={project.status} />
           )}
         </div>
       </div>
