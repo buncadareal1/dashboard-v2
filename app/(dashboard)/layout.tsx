@@ -49,7 +49,11 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex h-screen bg-background">
-      <Sidebar user={user} devUsers={devUsers} />
+      <Sidebar
+        user={user}
+        devUsers={devUsers}
+        showAiChat={user.role !== "gdda"}
+      />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar user={user} />
         <main className="flex-1 overflow-auto p-6">
@@ -58,7 +62,7 @@ export default async function DashboardLayout({
         </main>
       </div>
       <Toaster richColors />
-      {user.role !== "gdda" && <AiChatWidget />}
+      {/* AI Chat moved to Sidebar → AiChatPanel slide-out */}
     </div>
   );
 }
