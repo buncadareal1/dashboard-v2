@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { Search, Plus, Bell, LogOut } from "lucide-react";
+import { Plus, Bell, LogOut } from "lucide-react";
 import { signOut } from "@/lib/auth/config";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { ProjectSearch } from "./ProjectSearch";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,14 +22,7 @@ export function Topbar({ user }: TopbarProps) {
   return (
     <header className="flex h-16 items-center gap-4 border-b bg-background px-6">
       {/* Search */}
-      <div className="relative w-full max-w-md">
-        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          type="search"
-          placeholder="Tìm kiếm dự án, chiến dịch, lead..."
-          className="pl-9"
-        />
-      </div>
+      <ProjectSearch />
 
       <div className="flex-1" />
 
