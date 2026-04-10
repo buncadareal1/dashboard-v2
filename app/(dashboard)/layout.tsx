@@ -4,6 +4,7 @@ import { Sidebar } from "./_components/Sidebar";
 import { Topbar } from "./_components/Topbar";
 import { Toaster } from "@/components/ui/sonner";
 import { AiChatWidget } from "./_components/AiChatWidget";
+import { Breadcrumb } from "./_components/Breadcrumb";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -51,7 +52,10 @@ export default async function DashboardLayout({
       <Sidebar user={user} devUsers={devUsers} />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar user={user} />
-        <main className="flex-1 overflow-auto p-6">{children}</main>
+        <main className="flex-1 overflow-auto p-6">
+          <Breadcrumb />
+          {children}
+        </main>
       </div>
       <Toaster richColors />
       {user.role !== "gdda" && <AiChatWidget />}
