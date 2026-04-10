@@ -95,7 +95,7 @@ export function AdCreativeSection({ ads, totalBudget }: AdCreativeSectionProps) 
             </TableHeader>
             <TableBody>
               {ads.map((a, i) => (
-                <TableRow key={a.adId}>
+                <TableRow key={a.name}>
                   <TableCell className="font-medium">{i + 1}</TableCell>
                   <TableCell>
                     <div className="flex h-10 w-10 items-center justify-center rounded bg-muted">

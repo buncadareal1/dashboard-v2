@@ -119,12 +119,12 @@ export async function getCampaignStats(
  * Ad creative stats — rank ads theo F1.
  */
 export type AdCreativeStat = {
-  adId: string;
   name: string;
   formName: string | null;
   totalLead: number;
   leadF1: number;
   booking: number;
+  instanceCount: number;
   score: number;
   scoreLabel: "Xuất sắc" | "Tốt" | "Khá" | "Cần cải thiện";
 };
@@ -140,36 +140,37 @@ export async function getAdCreativeStats(
   projectId: string,
   sortBy: "f1" | "booking" | "lead" = "f1",
 ): Promise<AdCreativeStat[]> {
+  // Group by ad NAME (không phải ads.id) để gộp cùng creative chạy ở nhiều adset/campaign
   const rows = await db
     .select({
-      adId: ads.id,
       name: ads.name,
-      formName: ads.formName,
+      formName: sql<string | null>`min(${ads.formName})`,
       totalLead: sql<number>`count(${leads.id})::int`,
       leadF1: sql<number>`count(${leads.id}) filter (where ${stages.code} = 'F1')::int`,
       booking: sql<number>`count(${leads.id}) filter (where ${stages.code} = 'BOOKING')::int`,
+      instanceCount: sql<number>`count(DISTINCT ${ads.id})::int`,
     })
     .from(ads)
     .leftJoin(leads, eq(leads.adId, ads.id))
     .leftJoin(stages, eq(leads.currentStageId, stages.id))
     .where(eq(ads.projectId, projectId))
-    .groupBy(ads.id, ads.name, ads.formName);
+    .groupBy(ads.name);
 
   const result = rows.map(
     (r: {
-      adId: string;
       name: string;
       formName: string | null;
       totalLead: number;
       leadF1: number;
       booking: number;
+      instanceCount: number;
     }) => {
       // Score = (F1*3 + Booking*10) / Lead, normalized to 0-100
       const score =
         r.totalLead > 0
           ? Math.min(100, Math.round(((r.leadF1 * 3 + r.booking * 10) / r.totalLead) * 25))
           : 0;
-      return { ...r, score, scoreLabel: calcScoreLabel(score) };
+      return { ...r, score, scoreLabel: calcScoreLabel(score) } as AdCreativeStat;
     },
   );
 
