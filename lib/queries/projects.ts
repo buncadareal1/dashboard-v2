@@ -71,47 +71,59 @@ export async function getProjectsForUser(params: {
 
   const projectIds = projectRows.map((p: { id: string }) => p.id);
 
-  // Aggregate metrics: tổng lead, F1, booking per project
-  // Dùng leads trực tiếp vì daily_aggregates có thể stale
-  const leadStats = await db
-    .select({
-      projectId: leads.projectId,
-      totalLead: sql<number>`count(*)::int`,
-      leadF1: sql<number>`count(*) filter (where ${stages.code} = 'F1')::int`,
-      booking: sql<number>`count(*) filter (where ${stages.code} = 'BOOKING')::int`,
-    })
-    .from(leads)
-    .leftJoin(stages, eq(leads.currentStageId, stages.id))
-    .where(inArray(leads.projectId, projectIds))
-    .groupBy(leads.projectId);
+  // 4 queries SONG SONG — thay vì serial (tiết kiệm ~200-400ms)
+  const [leadStats, costRows, managerRows, fpRows] = await Promise.all([
+    // Lead stats
+    db
+      .select({
+        projectId: leads.projectId,
+        totalLead: sql<number>`count(*)::int`,
+        leadF1: sql<number>`count(*) filter (where ${stages.code} = 'F1')::int`,
+        booking: sql<number>`count(*) filter (where ${stages.code} = 'BOOKING')::int`,
+      })
+      .from(leads)
+      .leftJoin(stages, eq(leads.currentStageId, stages.id))
+      .where(inArray(leads.projectId, projectIds))
+      .groupBy(leads.projectId),
 
-  // Costs: sum amount per project
-  const costRows = await db
-    .select({
-      projectId: projectCosts.projectId,
-      totalCost: sql<number>`coalesce(sum(${projectCosts.amount}), 0)::float`,
-    })
-    .from(projectCosts)
-    .where(inArray(projectCosts.projectId, projectIds))
-    .groupBy(projectCosts.projectId);
+    // Costs
+    db
+      .select({
+        projectId: projectCosts.projectId,
+        totalCost: sql<number>`coalesce(sum(${projectCosts.amount}), 0)::float`,
+      })
+      .from(projectCosts)
+      .where(inArray(projectCosts.projectId, projectIds))
+      .groupBy(projectCosts.projectId),
 
-  // Primary digital manager per project (prefer can_edit=true)
-  const managerRows = await db
-    .select({
-      projectId: projectUsers.projectId,
-      userId: users.id,
-      name: users.name,
-      email: users.email,
-      canEdit: projectUsers.canEdit,
-    })
-    .from(projectUsers)
-    .innerJoin(users, eq(projectUsers.userId, users.id))
-    .where(
-      and(
-        inArray(projectUsers.projectId, projectIds),
-        eq(projectUsers.roleInProject, "digital"),
+    // Managers
+    db
+      .select({
+        projectId: projectUsers.projectId,
+        userId: users.id,
+        name: users.name,
+        email: users.email,
+        canEdit: projectUsers.canEdit,
+      })
+      .from(projectUsers)
+      .innerJoin(users, eq(projectUsers.userId, users.id))
+      .where(
+        and(
+          inArray(projectUsers.projectId, projectIds),
+          eq(projectUsers.roleInProject, "digital"),
+        ),
       ),
-    );
+
+    // Fanpages
+    db
+      .select({
+        projectId: projectFanpages.projectId,
+        name: fanpages.name,
+      })
+      .from(projectFanpages)
+      .innerJoin(fanpages, eq(projectFanpages.fanpageId, fanpages.id))
+      .where(inArray(projectFanpages.projectId, projectIds)),
+  ]);
 
   const managerMap = new Map<
     string,
@@ -125,26 +137,14 @@ export async function getProjectsForUser(params: {
     canEdit: boolean;
   }>) {
     const existing = managerMap.get(r.projectId);
-    if (!existing || (r.canEdit && existing)) {
-      if (!existing || r.canEdit) {
-        managerMap.set(r.projectId, {
-          id: r.userId,
-          name: r.name,
-          email: r.email,
-        });
-      }
+    if (!existing || r.canEdit) {
+      managerMap.set(r.projectId, {
+        id: r.userId,
+        name: r.name,
+        email: r.email,
+      });
     }
   }
-
-  // Fanpages per project
-  const fpRows = await db
-    .select({
-      projectId: projectFanpages.projectId,
-      name: fanpages.name,
-    })
-    .from(projectFanpages)
-    .innerJoin(fanpages, eq(projectFanpages.fanpageId, fanpages.id))
-    .where(inArray(projectFanpages.projectId, projectIds));
 
   // Maps for O(1) lookup
   const statsMap = new Map(

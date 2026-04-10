@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { eq, and, inArray } from "drizzle-orm";
 import { db } from "@/db";
 import { projectUsers, type UserRole } from "@/db/schema";
@@ -37,23 +38,26 @@ export async function assertRole(
  *
  * @returns null nếu admin (không scope), [] nếu không có project, hoặc list projectId
  */
-export async function getAccessibleProjectIds(
-  userId: string,
-  role: UserRole,
-): Promise<string[] | null> {
-  if (role === "admin") return null;
+/**
+ * React cache() deduplicate trong cùng 1 render tree (1 request).
+ * Nhiều query functions gọi getAccessibleProjectIds → chỉ hit DB 1 lần.
+ */
+export const getAccessibleProjectIds = cache(
+  async (userId: string, role: UserRole): Promise<string[] | null> => {
+    if (role === "admin") return null;
 
-  const rows = await db
-    .select({ projectId: projectUsers.projectId })
-    .from(projectUsers)
-    .where(
-      and(
-        eq(projectUsers.userId, userId),
-        eq(projectUsers.canView, true),
-      ),
-    );
-  return rows.map((r: { projectId: string }) => r.projectId);
-}
+    const rows = await db
+      .select({ projectId: projectUsers.projectId })
+      .from(projectUsers)
+      .where(
+        and(
+          eq(projectUsers.userId, userId),
+          eq(projectUsers.canView, true),
+        ),
+      );
+    return rows.map((r: { projectId: string }) => r.projectId);
+  },
+);
 
 /**
  * Lấy projectId user có quyền SỬA (can_edit) — admin có hết.

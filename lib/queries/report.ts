@@ -138,41 +138,44 @@ export async function getLeadDetail(params: {
   const pageSize = params.pageSize ?? 50;
   const offset = ((params.page ?? 1) - 1) * pageSize;
 
-  const rows = await db
-    .select({
-      id: leads.id,
-      fullName: leads.fullName,
-      email: leads.email,
-      stageLabel: stages.labelVi,
-      stageColor: stages.color,
-      projectName: projects.name,
-      fanpageName: fanpages.name,
-      campaignName: campaigns.name,
-      adsetName: adsets.name,
-      adName: ads.name,
-      formName: leads.formName,
-      fbLeadId: leads.fbLeadId,
-      sourceName: sources.name,
-      fbCreatedAt: leads.fbCreatedAt,
-    })
-    .from(leads)
-    .leftJoin(stages, eq(leads.currentStageId, stages.id))
-    .innerJoin(projects, eq(leads.projectId, projects.id))
-    .leftJoin(fanpages, eq(leads.fanpageId, fanpages.id))
-    .leftJoin(sources, eq(leads.sourceId, sources.id))
-    .leftJoin(campaigns, eq(leads.campaignId, campaigns.id))
-    .leftJoin(adsets, eq(leads.adsetId, adsets.id))
-    .leftJoin(ads, eq(leads.adId, ads.id))
-    .where(where)
-    .orderBy(desc(leads.fbCreatedAt))
-    .limit(pageSize)
-    .offset(offset);
+  // Rows + count SONG SONG (tiết kiệm ~80-150ms)
+  const [rows, totalResult] = await Promise.all([
+    db
+      .select({
+        id: leads.id,
+        fullName: leads.fullName,
+        email: leads.email,
+        stageLabel: stages.labelVi,
+        stageColor: stages.color,
+        projectName: projects.name,
+        fanpageName: fanpages.name,
+        campaignName: campaigns.name,
+        adsetName: adsets.name,
+        adName: ads.name,
+        formName: leads.formName,
+        fbLeadId: leads.fbLeadId,
+        sourceName: sources.name,
+        fbCreatedAt: leads.fbCreatedAt,
+      })
+      .from(leads)
+      .leftJoin(stages, eq(leads.currentStageId, stages.id))
+      .innerJoin(projects, eq(leads.projectId, projects.id))
+      .leftJoin(fanpages, eq(leads.fanpageId, fanpages.id))
+      .leftJoin(sources, eq(leads.sourceId, sources.id))
+      .leftJoin(campaigns, eq(leads.campaignId, campaigns.id))
+      .leftJoin(adsets, eq(leads.adsetId, adsets.id))
+      .leftJoin(ads, eq(leads.adId, ads.id))
+      .where(where)
+      .orderBy(desc(leads.fbCreatedAt))
+      .limit(pageSize)
+      .offset(offset),
 
-  const totalResult = await db
-    .select({ count: sql<number>`count(*)::int` })
-    .from(leads)
-    .leftJoin(stages, eq(leads.currentStageId, stages.id))
-    .where(where);
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(leads)
+      .leftJoin(stages, eq(leads.currentStageId, stages.id))
+      .where(where),
+  ]);
 
   return {
     rows: rows as LeadDetailRow[],
