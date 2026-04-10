@@ -1,13 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  CalendarDays,
-  Building2,
-  Newspaper,
-  Globe,
-  ListFilter,
-} from "lucide-react";
+import { CalendarDays, Building2, ListFilter } from "lucide-react";
 
 interface FilterOption {
   value: string;
@@ -16,17 +10,10 @@ interface FilterOption {
 
 interface ReportFiltersProps {
   projects: FilterOption[];
-  fanpages: FilterOption[];
-  sources: FilterOption[];
   stages: FilterOption[];
 }
 
-export function ReportFilters({
-  projects,
-  fanpages,
-  sources,
-  stages,
-}: ReportFiltersProps) {
+export function ReportFilters({ projects, stages }: ReportFiltersProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -37,7 +24,7 @@ export function ReportFilters({
     } else {
       params.set(key, value);
     }
-    params.delete("page"); // reset pagination on filter change
+    params.delete("page");
     router.replace(`/report?${params.toString()}`);
   }
 
@@ -64,22 +51,6 @@ export function ReportFilters({
         value={searchParams.get("project") ?? ""}
         onChange={(v) => updateParam("project", v)}
         options={projects}
-      />
-
-      <FilterSelect
-        icon={<Newspaper className="h-3.5 w-3.5" />}
-        label="Fanpage"
-        value={searchParams.get("fanpage") ?? ""}
-        onChange={(v) => updateParam("fanpage", v)}
-        options={fanpages}
-      />
-
-      <FilterSelect
-        icon={<Globe className="h-3.5 w-3.5" />}
-        label="Nguồn"
-        value={searchParams.get("source") ?? ""}
-        onChange={(v) => updateParam("source", v)}
-        options={sources}
       />
 
       <FilterSelect
@@ -126,13 +97,7 @@ function FilterSelect({
         ))}
       </select>
       <div className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground">
-        <svg
-          width="12"
-          height="12"
-          viewBox="0 0 12 12"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-        >
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
           <path
             d="M3 4.5L6 7.5L9 4.5"
             stroke="currentColor"

@@ -19,8 +19,6 @@ interface PageProps {
   searchParams: Promise<{
     page?: string;
     project?: string;
-    fanpage?: string;
-    source?: string;
     stage?: string;
     period?: string;
   }>;
@@ -48,13 +46,12 @@ export default async function ReportDataPage({ searchParams }: PageProps) {
         role: user.role,
         projectIds,
         stageCode: params.stage,
-        sourceId: params.source,
         page,
         pageSize: 50,
       }),
       isAdminOrDigital
         ? getReportFilterOptions({ userId: user.id, role: user.role })
-        : Promise.resolve({ projects: [], fanpages: [], sources: [], stages: [] }),
+        : Promise.resolve({ projects: [], stages: [] }),
       user.role === "gdda"
         ? getSummaryByDate({ userId: user.id, role: user.role })
         : Promise.resolve([]),
@@ -112,8 +109,6 @@ export default async function ReportDataPage({ searchParams }: PageProps) {
       {isAdminOrDigital && (
         <ReportFilters
           projects={filterOptions.projects}
-          fanpages={filterOptions.fanpages}
-          sources={filterOptions.sources}
           stages={filterOptions.stages}
         />
       )}
