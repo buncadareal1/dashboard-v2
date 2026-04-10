@@ -10,9 +10,42 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { cn } from "@/lib/utils";
 import { formatDateTimeVN, formatNumber } from "@/lib/utils/format";
 import { stageBadgeVariant } from "@/lib/utils/stage-badge";
 import type { LeadDetailRow } from "@/lib/queries/report";
+
+/**
+ * Generate page numbers with dots: [1, 2, ..., 5, 6, 7, ..., 16, 17]
+ */
+function getPageNumbers(
+  current: number,
+  total: number,
+): Array<number | "..."> {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  const pages: Array<number | "..."> = [];
+
+  // Always show first page
+  pages.push(1);
+
+  if (current > 3) pages.push("...");
+
+  // Window around current
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 1);
+  for (let i = start; i <= end; i++) {
+    pages.push(i);
+  }
+
+  if (current < total - 2) pages.push("...");
+
+  // Always show last page
+  pages.push(total);
+
+  return pages;
+}
 
 interface LeadDetailTableProps {
   rows: LeadDetailRow[];
@@ -115,22 +148,55 @@ export function LeadDetailTable({
           <p className="text-sm text-muted-foreground">
             Trang {currentPage} / {totalPages}
           </p>
-          <div className="flex gap-2">
-            {currentPage > 1 && (
+          <div className="flex items-center gap-1">
+            {/* Prev */}
+            {currentPage > 1 ? (
               <Link
                 href={`/report?page=${currentPage - 1}`}
-                className="rounded-md border px-3 py-1.5 text-sm hover:bg-muted"
+                className="rounded-md border px-2.5 py-1 text-sm hover:bg-muted"
               >
-                ← Trước
+                ‹
               </Link>
+            ) : (
+              <span className="rounded-md border px-2.5 py-1 text-sm text-muted-foreground/40">
+                ‹
+              </span>
             )}
-            {currentPage < totalPages && (
+
+            {/* Page numbers */}
+            {getPageNumbers(currentPage, totalPages).map((p, i) =>
+              p === "..." ? (
+                <span key={`dots-${i}`} className="px-1 text-sm text-muted-foreground">
+                  ···
+                </span>
+              ) : (
+                <Link
+                  key={p}
+                  href={`/report?page=${p}`}
+                  className={cn(
+                    "min-w-[32px] rounded-md px-2.5 py-1 text-center text-sm transition-colors",
+                    p === currentPage
+                      ? "bg-primary text-primary-foreground"
+                      : "border hover:bg-muted",
+                  )}
+                >
+                  {p}
+                </Link>
+              ),
+            )}
+
+            {/* Next */}
+            {currentPage < totalPages ? (
               <Link
                 href={`/report?page=${currentPage + 1}`}
-                className="rounded-md border px-3 py-1.5 text-sm hover:bg-muted"
+                className="rounded-md border px-2.5 py-1 text-sm hover:bg-muted"
               >
-                Sau →
+                ›
               </Link>
+            ) : (
+              <span className="rounded-md border px-2.5 py-1 text-sm text-muted-foreground/40">
+                ›
+              </span>
             )}
           </div>
         </div>
