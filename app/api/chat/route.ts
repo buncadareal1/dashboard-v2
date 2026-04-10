@@ -5,13 +5,17 @@ import {
   type UIMessage,
 } from "ai";
 import { google } from "@ai-sdk/google";
-import { requireSession } from "@/lib/auth/session";
+import { getSessionUser } from "@/lib/auth/session";
 import { getAccessibleProjectIds } from "@/lib/auth/guards";
 import { createDashboardTools } from "@/lib/ai/tools";
 
 export async function POST(req: Request) {
   try {
-    const user = await requireSession();
+    const user = await getSessionUser();
+    if (!user) {
+      return Response.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { messages }: { messages: UIMessage[] } = await req.json();
 
     const accessibleProjectIds = await getAccessibleProjectIds(
@@ -40,7 +44,9 @@ User hiện tại: ${user.name ?? user.email} (role: ${user.role})`,
       stopWhen: stepCountIs(5),
     });
 
-    return result.toUIMessageStreamResponse();
+    return result.toUIMessageStreamResponse({
+      originalMessages: messages,
+    });
   } catch (err) {
     const message =
       err instanceof Error ? err.message : "AI service unavailable";
