@@ -8,14 +8,21 @@ import {
   getByEmployee,
   getByFanpage,
 } from "@/lib/queries/report";
+import { getReportFilterOptions } from "@/lib/queries/report-filters";
 import { Card, CardContent } from "@/components/ui/card";
 import { LeadDetailTable } from "./_components/LeadDetailTable";
 import { GddaReportTabs } from "./_components/GddaReportTabs";
+import { ReportFilters } from "./_components/ReportFilters";
 import { formatNumber } from "@/lib/utils/format";
 
 interface PageProps {
   searchParams: Promise<{
     page?: string;
+    project?: string;
+    fanpage?: string;
+    source?: string;
+    stage?: string;
+    period?: string;
   }>;
 }
 
@@ -26,16 +33,28 @@ export default async function ReportDataPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const page = parseInt(params.page ?? "1", 10);
 
-  const [stats, leadDetail, summaryByDate, byEmployee, byFanpage] =
+  const isAdminOrDigital = user.role === "admin" || user.role === "digital";
+  const projectIds = params.project ? [params.project] : undefined;
+
+  const [stats, leadDetail, filterOptions, summaryByDate, byEmployee, byFanpage] =
     await Promise.all([
-      getReportStatCards({ userId: user.id, role: user.role }),
+      getReportStatCards({
+        userId: user.id,
+        role: user.role,
+        projectIds,
+      }),
       getLeadDetail({
         userId: user.id,
         role: user.role,
+        projectIds,
+        stageCode: params.stage,
+        sourceId: params.source,
         page,
         pageSize: 50,
       }),
-      // Chỉ load GDDA sub-tab data nếu là gdda
+      isAdminOrDigital
+        ? getReportFilterOptions({ userId: user.id, role: user.role })
+        : Promise.resolve({ projects: [], fanpages: [], sources: [], stages: [] }),
       user.role === "gdda"
         ? getSummaryByDate({ userId: user.id, role: user.role })
         : Promise.resolve([]),
@@ -88,6 +107,16 @@ export default async function ReportDataPage({ searchParams }: PageProps) {
           color="text-green-700"
         />
       </div>
+
+      {/* Filter bar — chỉ admin/digital */}
+      {isAdminOrDigital && (
+        <ReportFilters
+          projects={filterOptions.projects}
+          fanpages={filterOptions.fanpages}
+          sources={filterOptions.sources}
+          stages={filterOptions.stages}
+        />
+      )}
 
       {/* Split view theo role */}
       {user.role === "gdda" ? (

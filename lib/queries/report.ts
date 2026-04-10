@@ -88,6 +88,8 @@ export async function getLeadDetail(params: {
   userId: string;
   role: UserRole;
   projectIds?: string[];
+  stageCode?: string;
+  sourceId?: string;
   page?: number;
   pageSize?: number;
 }): Promise<{ rows: LeadDetailRow[]; total: number }> {
@@ -101,7 +103,11 @@ export async function getLeadDetail(params: {
 
   if (scope !== null && scope.length === 0) return { rows: [], total: 0 };
 
-  const where = scope ? inArray(leads.projectId, scope) : sql`true`;
+  const conditions = [];
+  if (scope) conditions.push(inArray(leads.projectId, scope));
+  if (params.stageCode) conditions.push(eq(stages.code, params.stageCode));
+  if (params.sourceId) conditions.push(eq(leads.sourceId, params.sourceId));
+  const where = conditions.length > 0 ? and(...conditions) : sql`true`;
   const pageSize = params.pageSize ?? 50;
   const offset = ((params.page ?? 1) - 1) * pageSize;
 
