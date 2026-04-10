@@ -21,19 +21,25 @@ export default async function ProjectsListPage({ searchParams }: PageProps) {
   if (user.role === "gdda") redirect("/report");
 
   const params = await searchParams;
-  const projects = await getProjectsForUser({
+
+  // Query TẤT CẢ projects (không filter status) để tính counts đúng
+  const allProjects = await getProjectsForUser({
     userId: user.id,
     role: user.role,
-    status: params.status,
     search: params.search,
   });
 
   const counts = {
-    all: projects.length,
-    running: projects.filter((p) => p.status === "running").length,
-    warning: projects.filter((p) => p.status === "warning").length,
-    paused: projects.filter((p) => p.status === "paused").length,
+    all: allProjects.length,
+    running: allProjects.filter((p) => p.status === "running").length,
+    warning: allProjects.filter((p) => p.status === "warning").length,
+    paused: allProjects.filter((p) => p.status === "paused").length,
   };
+
+  // Filter display list theo status tab đang chọn
+  const projects = params.status
+    ? allProjects.filter((p) => p.status === params.status)
+    : allProjects;
 
   return (
     <div className="space-y-6">
