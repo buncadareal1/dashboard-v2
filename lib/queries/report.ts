@@ -14,6 +14,21 @@ import {
 import { getAccessibleProjectIds } from "@/lib/auth/guards";
 import type { UserRole } from "@/db/schema";
 
+/** Convert period filter value to a cutoff Date, or null for "all". */
+function periodToCutoff(period: string): Date | null {
+  const now = new Date();
+  switch (period) {
+    case "7d":
+      return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    case "30d":
+      return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    case "90d":
+      return new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    default:
+      return null;
+  }
+}
+
 /**
  * Report Data stat cards (cùng dùng cho admin/digital và GDDA).
  */
@@ -29,6 +44,8 @@ export async function getReportStatCards(params: {
   userId: string;
   role: UserRole;
   projectIds?: string[];
+  stageCode?: string;
+  period?: string;
 }): Promise<ReportStatCards> {
   const accessible = await getAccessibleProjectIds(params.userId, params.role);
 
@@ -47,7 +64,14 @@ export async function getReportStatCards(params: {
     scopeIds = accessible;
   }
 
-  const where = scopeIds ? inArray(leads.projectId, scopeIds) : sql`true`;
+  const conditions = [];
+  if (scopeIds) conditions.push(inArray(leads.projectId, scopeIds));
+  if (params.stageCode) conditions.push(eq(stages.code, params.stageCode));
+  if (params.period) {
+    const cutoff = periodToCutoff(params.period);
+    if (cutoff) conditions.push(sql`${leads.fbCreatedAt} >= ${cutoff}`);
+  }
+  const where = conditions.length > 0 ? and(...conditions) : sql`true`;
 
   const result = await db
     .select({
@@ -89,7 +113,7 @@ export async function getLeadDetail(params: {
   role: UserRole;
   projectIds?: string[];
   stageCode?: string;
-  sourceId?: string;
+  period?: string;
   page?: number;
   pageSize?: number;
 }): Promise<{ rows: LeadDetailRow[]; total: number }> {
@@ -106,7 +130,10 @@ export async function getLeadDetail(params: {
   const conditions = [];
   if (scope) conditions.push(inArray(leads.projectId, scope));
   if (params.stageCode) conditions.push(eq(stages.code, params.stageCode));
-  if (params.sourceId) conditions.push(eq(leads.sourceId, params.sourceId));
+  if (params.period) {
+    const cutoff = periodToCutoff(params.period);
+    if (cutoff) conditions.push(sql`${leads.fbCreatedAt} >= ${cutoff}`);
+  }
   const where = conditions.length > 0 ? and(...conditions) : sql`true`;
   const pageSize = params.pageSize ?? 50;
   const offset = ((params.page ?? 1) - 1) * pageSize;
@@ -144,6 +171,7 @@ export async function getLeadDetail(params: {
   const totalResult = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(leads)
+    .leftJoin(stages, eq(leads.currentStageId, stages.id))
     .where(where);
 
   return {
