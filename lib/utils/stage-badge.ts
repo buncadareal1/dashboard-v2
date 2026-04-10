@@ -6,6 +6,7 @@
 type StageBadgeVariant =
   | "new"
   | "contacted"
+  | "f1"
   | "qualified"
   | "won"
   | "lost"
@@ -45,9 +46,13 @@ export function stageBadgeVariant(label: string | null | undefined): StageBadgeV
     return "lost";
   }
 
-  // Qualified — F1, đang chăm
+  // F1 — xanh lá
+  if (s.includes("f1") || s.includes("quan tâm dự án") || s.includes("quan tam du an")) {
+    return "f1";
+  }
+
+  // Qualified / Đang chăm — vàng
   if (
-    s.includes("f1") ||
     s.includes("đang chăm") ||
     s.includes("dang cham") ||
     s.includes("qualified")
