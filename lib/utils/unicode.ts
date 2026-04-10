@@ -38,3 +38,24 @@ export function normalizePhone(input: string | null | undefined): string {
     phone = "0" + phone.slice(2);
   return phone;
 }
+
+/**
+ * Normalize tên entity ads (campaign/adset/ad): trim + collapse whitespace,
+ * GIỮ NGUYÊN casing và dấu. Dùng khi muốn lưu canonical name vào DB.
+ */
+export function normalizeEntityName(
+  input: string | null | undefined,
+): string {
+  if (!input) return "";
+  return input.trim().replace(/\s+/g, " ");
+}
+
+/**
+ * Lookup key case-insensitive cho entity ads — dùng so sánh, KHÔNG dùng lưu DB.
+ * Dùng chung cho campaign/adset/ad/stage alias.
+ */
+export function entityLookupKey(
+  input: string | null | undefined,
+): string {
+  return normalizeEntityName(input).toLowerCase();
+}

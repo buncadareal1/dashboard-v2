@@ -1,11 +1,16 @@
 import Papa from "papaparse";
-import { normalizeName, normalizePhone } from "@/lib/utils/unicode";
+import {
+  normalizeName,
+  normalizePhone,
+  normalizeEntityName,
+} from "@/lib/utils/unicode";
 
 /**
  * Parser CSV xuất từ Facebook Ads Manager (Lead Ads).
  *
  * Cấu trúc cố định 11 cột đầu + N custom form fields tuỳ form.
- * KHÔNG dùng cột "Tình trạng" — stage thực lấy từ Bitrix CSV upload riêng.
+ * Cột "Tình trạng" nếu có → parse luôn làm stage. Bitrix CSV upload
+ * sau này chỉ cập nhật/override stage cho các lead đã tồn tại.
  */
 
 export const FB_REQUIRED_HEADERS = [
@@ -33,10 +38,13 @@ const FB_SPENT_HEADERS = [
   "Spend",
 ] as const;
 
+/** Optional stage column in FB CSV exports (user may include) */
+const FB_STAGE_HEADERS = ["Tình trạng", "Stage", "Trạng thái"] as const;
+
 const FB_KNOWN_COLUMNS = new Set<string>([
   ...FB_REQUIRED_HEADERS,
   ...FB_SPENT_HEADERS,
-  "Tình trạng", // ignored — stage lấy từ Bitrix
+  ...FB_STAGE_HEADERS,
 ]);
 
 function parseSpentNumber(raw: string | undefined): number | null {
@@ -62,6 +70,8 @@ export type FacebookRow = {
   fbCreatedAt: Date | null;
   /** Amount spent (VND) từ cột Insights nếu có — null nếu file không chứa */
   amountSpent: number | null;
+  /** Raw stage label từ cột "Tình trạng" nếu có — resolve qua alias map */
+  rawStage: string | null;
   /** Custom form fields — dynamic key set per form */
   formAnswers: Record<string, string>;
 };
@@ -112,6 +122,8 @@ export function parseFacebookCsv(input: string): ParseFbResult {
 
   // Detect which spent column is present (ưu tiên thứ tự trong FB_SPENT_HEADERS)
   const spentCol = FB_SPENT_HEADERS.find((h) => headers.includes(h)) ?? null;
+  // Detect stage column
+  const stageCol = FB_STAGE_HEADERS.find((h) => headers.includes(h)) ?? null;
 
   const rows: FacebookRow[] = parsed.data.map((row) => {
     const fullName = row["Full Name"]?.trim() ?? "";
@@ -133,12 +145,13 @@ export function parseFacebookCsv(input: string): ParseFbResult {
       phoneNormalized: phone ? normalizePhone(phone) : null,
       email,
       fbLeadId: row["Lead ID"]?.trim() || null,
-      campaignName: row["Campaign"]?.trim() || null,
-      adsetName: row["Adset"]?.trim() || null,
-      adName: row["Ad"]?.trim() || null,
-      formName: row["Form Name"]?.trim() || null,
+      campaignName: normalizeEntityName(row["Campaign"]) || null,
+      adsetName: normalizeEntityName(row["Adset"]) || null,
+      adName: normalizeEntityName(row["Ad"]) || null,
+      formName: normalizeEntityName(row["Form Name"]) || null,
       fbCreatedAt: parseVnDate(row["Created Time"]),
       amountSpent: spentCol ? parseSpentNumber(row[spentCol]) : null,
+      rawStage: stageCol ? (row[stageCol]?.trim() || null) : null,
       formAnswers,
     };
   });

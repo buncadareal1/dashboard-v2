@@ -4,7 +4,7 @@ import { csvUploads } from "@/db/schema";
 
 export type UploadHistoryRow = {
   id: string;
-  type: "facebook" | "bitrix";
+  type: "facebook" | "bitrix" | "cost";
   filename: string;
   status: "pending" | "processing" | "done" | "failed";
   rowCount: number;

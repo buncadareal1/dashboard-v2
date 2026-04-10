@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/auth/session";
 import { Sidebar } from "./_components/Sidebar";
 import { Topbar } from "./_components/Topbar";
 import { Toaster } from "@/components/ui/sonner";
+import { AiChatWidget } from "./_components/AiChatWidget";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -53,6 +54,7 @@ export default async function DashboardLayout({
         <main className="flex-1 overflow-auto p-6">{children}</main>
       </div>
       <Toaster richColors />
+      <AiChatWidget />
     </div>
   );
 }

@@ -21,6 +21,7 @@ import { leads } from "./leads";
 export const csvUploadTypeEnum = pgEnum("csv_upload_type", [
   "facebook",
   "bitrix",
+  "cost",
 ]);
 
 export const csvUploadStatusEnum = pgEnum("csv_upload_status", [

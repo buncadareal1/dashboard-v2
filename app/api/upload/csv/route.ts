@@ -8,9 +8,11 @@ import { assertCanEditProject } from "@/lib/auth/guards";
 import { inngest } from "@/inngest/client";
 import { parseFacebookCsv } from "@/lib/csv/parser-facebook";
 import { parseBitrixCsv } from "@/lib/csv/parser-bitrix";
+import { parseCostCsv } from "@/lib/csv/parser-cost";
 import {
   ingestFacebookRows,
   ingestBitrixRows,
+  ingestCostRows,
 } from "@/lib/csv/upsert-service";
 import { rebuildAllAggregatesForProject } from "@/lib/aggregates/builder";
 
@@ -24,7 +26,7 @@ import { rebuildAllAggregatesForProject } from "@/lib/aggregates/builder";
 
 const QuerySchema = z.object({
   projectId: z.string().uuid(),
-  type: z.enum(["facebook", "bitrix"]),
+  type: z.enum(["facebook", "bitrix", "cost"]),
 });
 
 const MAX_SIZE = 4 * 1024 * 1024; // 4MB Vercel limit
@@ -80,6 +82,15 @@ export async function POST(req: Request) {
       { status: 400 },
     );
   }
+  if (
+    parsed.data.type === "cost" &&
+    !firstLine?.toUpperCase().includes("CHI TIÊU")
+  ) {
+    return NextResponse.json(
+      { error: "File không phải định dạng Chi phí (thiếu cột CHI TIÊU)" },
+      { status: 400 },
+    );
+  }
 
   // Insert audit row
   const [upload] = await db
@@ -131,7 +142,7 @@ export async function POST(req: Request) {
         result.rows.map((r) => ({ ...r, source: "csv_facebook" as const })),
         { projectId: parsed.data.projectId, csvUploadId: upload.id },
       );
-    } else {
+    } else if (parsed.data.type === "bitrix") {
       const result = parseBitrixCsv(content);
       if (result.kind !== "ok")
         throw new Error(`Parse Bitrix fail: ${result.kind}`);
@@ -139,6 +150,17 @@ export async function POST(req: Request) {
         result.rows.map((r) => ({ ...r, source: "csv_bitrix" as const })),
         { projectId: parsed.data.projectId, csvUploadId: upload.id },
       );
+    } else {
+      // cost
+      const result = parseCostCsv(content);
+      if (result.kind !== "ok")
+        throw new Error(
+          `Parse Cost fail: ${result.kind}${result.kind === "invalid-header" ? " missing=" + result.missing.join(",") : ""}`,
+        );
+      summary = await ingestCostRows(result.rows, {
+        projectId: parsed.data.projectId,
+        csvUploadId: upload.id,
+      });
     }
 
     await rebuildAllAggregatesForProject(parsed.data.projectId);

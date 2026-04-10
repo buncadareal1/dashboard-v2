@@ -22,11 +22,16 @@ export function resolveStage(
   if (!raw || !raw.trim()) return { kind: "no-stage" };
 
   const trimmed = raw.trim();
-  if (!aliasMap.has(trimmed)) {
+  // Case-insensitive + whitespace-collapsed lookup key.
+  // aliasMap MUST be built with lowercased keys — see upsert-service
+  // loadStageAliasMap(). Original `trimmed` is preserved in the return
+  // value so admins see the original casing in pending/unknown flows.
+  const key = trimmed.toLowerCase().replace(/\s+/g, " ");
+  if (!aliasMap.has(key)) {
     return { kind: "unknown", raw: trimmed };
   }
 
-  const stageId = aliasMap.get(trimmed);
+  const stageId = aliasMap.get(key);
   if (stageId == null) {
     return { kind: "pending", raw: trimmed };
   }

@@ -5,3 +5,4 @@ export * from "./projects";
 export * from "./ads";
 export * from "./leads";
 export * from "./ops";
+export * from "./chat";

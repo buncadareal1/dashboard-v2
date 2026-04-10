@@ -6,13 +6,16 @@ import { resolveStage } from "./stage-mapper";
  * DB lookup separated to caller. Tests cover algorithm only.
  */
 describe("resolveStage", () => {
+  // NOTE: keys must be LOWERCASED — upsert-service's loadStageAliasMap
+  // builds the map with lowercase keys. resolveStage lowercases the
+  // incoming raw string before lookup.
   const aliasMap = new Map<string, string | null>([
-    ["F1 (QT dự án cụ thể)", "stage-f1-id"],
-    ["F1", "stage-f1-id"],
-    ["Đang Chăm (2h)", "stage-dc-id"],
-    ["Đang Chăm", "stage-dc-id"],
-    ["Booking", "stage-booking-id"],
-    ["Lead Pending Review", null], // alias exists nhưng chưa map
+    ["f1 (qt dự án cụ thể)", "stage-f1-id"],
+    ["f1", "stage-f1-id"],
+    ["đang chăm (2h)", "stage-dc-id"],
+    ["đang chăm", "stage-dc-id"],
+    ["booking", "stage-booking-id"],
+    ["lead pending review", null],
   ]);
 
   it("match exact raw → trả stageId", () => {
@@ -49,5 +52,14 @@ describe("resolveStage", () => {
 
   it("trim whitespace ở raw input", () => {
     expect(resolveStage("  F1  ", aliasMap).kind).toBe("matched");
+  });
+
+  it("case-insensitive + collapse whitespace", () => {
+    // "Đang chăm" (lowercase c) matches alias "đang chăm"
+    expect(resolveStage("Đang chăm", aliasMap).kind).toBe("matched");
+    // "f1" lowercase matches
+    expect(resolveStage("f1", aliasMap).kind).toBe("matched");
+    // double whitespace collapses
+    expect(resolveStage("Đang  Chăm", aliasMap).kind).toBe("matched");
   });
 });

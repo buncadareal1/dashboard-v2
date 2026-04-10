@@ -9,6 +9,7 @@ import {
   stages,
   dailyAggregates,
   projectCosts,
+  users,
 } from "@/db/schema";
 import { getAccessibleProjectIds } from "@/lib/auth/guards";
 import type { UserRole } from "@/db/schema";
@@ -94,6 +95,47 @@ export async function getProjectsForUser(params: {
     .where(inArray(projectCosts.projectId, projectIds))
     .groupBy(projectCosts.projectId);
 
+  // Primary digital manager per project (prefer can_edit=true)
+  const managerRows = await db
+    .select({
+      projectId: projectUsers.projectId,
+      userId: users.id,
+      name: users.name,
+      email: users.email,
+      canEdit: projectUsers.canEdit,
+    })
+    .from(projectUsers)
+    .innerJoin(users, eq(projectUsers.userId, users.id))
+    .where(
+      and(
+        inArray(projectUsers.projectId, projectIds),
+        eq(projectUsers.roleInProject, "digital"),
+      ),
+    );
+
+  const managerMap = new Map<
+    string,
+    { id: string; name: string | null; email: string }
+  >();
+  for (const r of managerRows as Array<{
+    projectId: string;
+    userId: string;
+    name: string | null;
+    email: string;
+    canEdit: boolean;
+  }>) {
+    const existing = managerMap.get(r.projectId);
+    if (!existing || (r.canEdit && existing)) {
+      if (!existing || r.canEdit) {
+        managerMap.set(r.projectId, {
+          id: r.userId,
+          name: r.name,
+          email: r.email,
+        });
+      }
+    }
+  }
+
   // Fanpages per project
   const fpRows = await db
     .select({
@@ -156,7 +198,7 @@ export async function getProjectsForUser(params: {
         conversionRate:
           stats.totalLead > 0 ? stats.leadF1 / stats.totalLead : 0,
         booking: stats.booking,
-        manager: null, // TODO: join project_users primary digital
+        manager: managerMap.get(p.id) ?? null,
         fanpages: fpMap.get(p.id) ?? [],
       };
     },
@@ -245,4 +287,3 @@ export async function getDashboardOverviewStats(params: {
 
 // Suppress unused for now
 void dailyAggregates;
-void projectUsers;

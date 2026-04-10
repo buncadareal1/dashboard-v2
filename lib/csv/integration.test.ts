@@ -81,7 +81,7 @@ describe("integration: parse fixtures + matcher + stage-mapper", () => {
     expect(f1Row).toBeDefined();
 
     const aliasMap = new Map<string, string | null>([
-      ["F1 (QT dự án cụ thể)", "stage-f1-id"],
+      ["f1 (qt dự án cụ thể)", "stage-f1-id"],
     ]);
     const resolved = resolveStage(f1Row?.rawStage ?? null, aliasMap);
     expect(resolved).toEqual({ kind: "matched", stageId: "stage-f1-id" });

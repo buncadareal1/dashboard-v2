@@ -1,6 +1,6 @@
 import { eq, and, sql, isNull, desc } from "drizzle-orm";
 import { db } from "@/db";
-import { projects, leads, stages, campaigns, ads } from "@/db/schema";
+import { projects, leads, stages, campaigns, ads, projectCosts } from "@/db/schema";
 
 /**
  * Get project full details + stat cards (Ngân sách, Tổng Lead, CPL, F1 Rate).
@@ -38,7 +38,20 @@ export async function getProjectDetailBySlug(
     .where(eq(leads.projectId, project.id));
 
   const s = stats[0] as { totalLead: number; leadF1: number; booking: number };
-  const budget = project.budget ? parseFloat(project.budget) : 0;
+
+  const costRows = await db
+    .select({
+      totalCost: sql<number>`coalesce(sum(${projectCosts.amount}), 0)::float`,
+    })
+    .from(projectCosts)
+    .where(eq(projectCosts.projectId, project.id));
+  const summedCost = (costRows[0] as { totalCost: number } | undefined)?.totalCost ?? 0;
+  const budget =
+    summedCost > 0
+      ? summedCost
+      : project.budget
+        ? parseFloat(project.budget)
+        : 0;
 
   return {
     id: project.id,

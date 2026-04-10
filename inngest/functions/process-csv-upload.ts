@@ -4,9 +4,11 @@ import { db } from "@/db";
 import { csvUploads } from "@/db/schema";
 import { parseFacebookCsv } from "@/lib/csv/parser-facebook";
 import { parseBitrixCsv } from "@/lib/csv/parser-bitrix";
+import { parseCostCsv } from "@/lib/csv/parser-cost";
 import {
   ingestFacebookRows,
   ingestBitrixRows,
+  ingestCostRows,
 } from "@/lib/csv/upsert-service";
 import { rebuildDailyAggregatesForDates } from "@/lib/aggregates/builder";
 
@@ -42,7 +44,7 @@ export const processCsvUpload = inngest.createFunction(
     ).data as {
       uploadId: string;
       projectId: string;
-      type: "facebook" | "bitrix";
+      type: "facebook" | "bitrix" | "cost";
       fileContent: string;
     };
 
@@ -60,12 +62,18 @@ export const processCsvUpload = inngest.createFunction(
           throw new Error(`FB parse failed: ${result.kind}`);
         }
         return { kind: "facebook" as const, rows: result.rows };
-      } else {
+      } else if (type === "bitrix") {
         const result = parseBitrixCsv(fileContent);
         if (result.kind !== "ok") {
           throw new Error(`Bitrix parse failed: ${result.kind}`);
         }
         return { kind: "bitrix" as const, rows: result.rows };
+      } else {
+        const result = parseCostCsv(fileContent);
+        if (result.kind !== "ok") {
+          throw new Error(`Cost parse failed: ${result.kind}`);
+        }
+        return { kind: "cost" as const, rows: result.rows };
       }
     });
 
@@ -83,7 +91,7 @@ export const processCsvUpload = inngest.createFunction(
           })),
           { projectId, csvUploadId: uploadId },
         );
-      } else {
+      } else if (parsed.kind === "bitrix") {
         return ingestBitrixRows(
           parsed.rows.map((r) => ({
             ...r,
@@ -92,6 +100,11 @@ export const processCsvUpload = inngest.createFunction(
           })),
           { projectId, csvUploadId: uploadId },
         );
+      } else {
+        return ingestCostRows(parsed.rows, {
+          projectId,
+          csvUploadId: uploadId,
+        });
       }
     });
 

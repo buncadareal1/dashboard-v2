@@ -21,6 +21,8 @@ export type FacebookLeadInput = {
   formName: string | null;
   fbCreatedAt: Date | null;
   amountSpent?: number | null;
+  /** Raw stage label từ CSV "Tình trạng" — null nếu file không có cột này */
+  rawStage?: string | null;
   formAnswers: Record<string, string>;
 };
 

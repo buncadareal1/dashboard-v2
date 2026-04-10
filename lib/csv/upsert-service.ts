@@ -15,6 +15,7 @@ import {
 } from "@/db/schema";
 import { matchLead, type LeadCandidate } from "./matcher";
 import { resolveStage } from "./stage-mapper";
+import { entityLookupKey } from "@/lib/utils/unicode";
 import type {
   FacebookLeadInput,
   BitrixUpdateInput,
@@ -41,15 +42,25 @@ type UpsertSummary = {
 
 /**
  * Build alias map từ DB cho stage resolver.
+ * Key = lowercase trim of alias raw (case-insensitive lookup).
+ * Cũng thêm stage.code + stage.labelVi làm alias ngầm.
  */
 async function loadStageAliasMap(): Promise<Map<string, string | null>> {
-  const rows = await db.select().from(stageAliases);
-  return new Map(
-    rows.map((r: { raw: string; stageId: string | null }) => [
-      r.raw,
-      r.stageId,
-    ]),
-  );
+  const [aliasRows, stageRows] = await Promise.all([
+    db.select().from(stageAliases),
+    db.select().from(stages),
+  ]);
+  const map = new Map<string, string | null>();
+  // Stages first: code + labelVi → id
+  for (const s of stageRows) {
+    map.set(entityLookupKey(s.code), s.id);
+    map.set(entityLookupKey(s.labelVi), s.id);
+  }
+  // Explicit aliases override (or add pending null)
+  for (const a of aliasRows) {
+    map.set(entityLookupKey(a.raw), a.stageId);
+  }
+  return map;
 }
 
 /**
@@ -113,64 +124,68 @@ async function buildAdTaxonomyMaps(
   adsetMap: Map<string, string>; // key = `${campaignId}:${adsetName}`
   adMap: Map<string, string>; // key = `${adsetId}:${adName}`
 }> {
-  // 1. Distinct campaigns
-  const campaignNames = [
-    ...new Set(rows.map((r) => r.campaignName).filter((n): n is string => !!n)),
-  ];
-
-  if (campaignNames.length > 0) {
-    await db
-      .insert(campaigns)
-      .values(
-        campaignNames.map((name) => ({
-          projectId,
-          name,
-          statusLabel: "on" as const,
-        })),
-      )
-      .onConflictDoNothing();
+  // Load ALL existing campaigns/adsets/ads for this project once.
+  // Lookups during upsert are case-insensitive (entityLookupKey).
+  const existingCampaigns = await db
+    .select({ id: campaigns.id, name: campaigns.name })
+    .from(campaigns)
+    .where(eq(campaigns.projectId, projectId));
+  const campaignIdByNorm = new Map<string, string>();
+  for (const c of existingCampaigns) {
+    campaignIdByNorm.set(entityLookupKey(c.name), c.id);
   }
 
-  const campaignRows =
-    campaignNames.length > 0
-      ? await db
-          .select({ id: campaigns.id, name: campaigns.name })
-          .from(campaigns)
-          .where(
-            and(
-              eq(campaigns.projectId, projectId),
-              inArray(campaigns.name, campaignNames),
-            ),
-          )
-      : [];
-  const campaignMap = new Map<string, string>(
-    campaignRows.map((c: { id: string; name: string }) => [c.name, c.id]),
-  );
-
-  // 2. Distinct (campaignName, adsetName) pairs
-  const adsetPairs = new Set<string>();
+  // 1. Distinct incoming campaign names (preserve original casing for insert)
+  const incomingCampaignNames = new Set<string>();
   for (const r of rows) {
-    if (r.campaignName && r.adsetName) {
-      adsetPairs.add(`${r.campaignName}\x00${r.adsetName}`);
+    if (r.campaignName) incomingCampaignNames.add(r.campaignName);
+  }
+  const toInsertCampaigns: Array<{
+    projectId: string;
+    name: string;
+    statusLabel: "on";
+  }> = [];
+  const insertedNormKeys = new Set<string>();
+  for (const name of incomingCampaignNames) {
+    const key = entityLookupKey(name);
+    if (!campaignIdByNorm.has(key) && !insertedNormKeys.has(key)) {
+      toInsertCampaigns.push({ projectId, name, statusLabel: "on" });
+      insertedNormKeys.add(key);
     }
   }
-  const adsetTuples = [...adsetPairs]
-    .map((p) => {
-      const [cn, an] = p.split("\x00");
-      const cid = campaignMap.get(cn);
-      return cid ? { campaignId: cid, name: an } : null;
-    })
-    .filter((x): x is { campaignId: string; name: string } => x !== null);
-
-  if (adsetTuples.length > 0) {
-    await db.insert(adsets).values(adsetTuples).onConflictDoNothing();
+  if (toInsertCampaigns.length > 0) {
+    const inserted = await db
+      .insert(campaigns)
+      .values(toInsertCampaigns)
+      .onConflictDoNothing()
+      .returning({ id: campaigns.id, name: campaigns.name });
+    for (const c of inserted) {
+      campaignIdByNorm.set(entityLookupKey(c.name), c.id);
+    }
+    // If onConflict skipped (race), re-fetch for any missing
+    const stillMissing = toInsertCampaigns.filter(
+      (t) => !campaignIdByNorm.has(entityLookupKey(t.name)),
+    );
+    if (stillMissing.length > 0) {
+      const refetch = await db
+        .select({ id: campaigns.id, name: campaigns.name })
+        .from(campaigns)
+        .where(eq(campaigns.projectId, projectId));
+      for (const c of refetch)
+        campaignIdByNorm.set(entityLookupKey(c.name), c.id);
+    }
+  }
+  // campaignMap: original CSV string → campaign id (normalized lookup)
+  const campaignMap = new Map<string, string>();
+  for (const name of incomingCampaignNames) {
+    const id = campaignIdByNorm.get(entityLookupKey(name));
+    if (id) campaignMap.set(name, id);
   }
 
-  const distinctCampaignIds = [
-    ...new Set(adsetTuples.map((a) => a.campaignId)),
-  ];
-  const adsetRows =
-    distinctCampaignIds.length > 0
+  // 2. Adsets — load existing for relevant campaigns, then insert missing
+  const distinctCampaignIdsForAdsets = [...new Set(campaignMap.values())];
+  const existingAdsets =
+    distinctCampaignIdsForAdsets.length > 0
       ? await db
           .select({
             id: adsets.id,
@@ -178,52 +193,50 @@ async function buildAdTaxonomyMaps(
             name: adsets.name,
           })
           .from(adsets)
-          .where(inArray(adsets.campaignId, distinctCampaignIds))
+          .where(inArray(adsets.campaignId, distinctCampaignIdsForAdsets))
       : [];
-  const adsetMap = new Map<string, string>(
-    adsetRows.map((a: { id: string; campaignId: string; name: string }) => [
-      `${a.campaignId}\x00${a.name}`,
-      a.id,
-    ]),
-  );
-
-  // 3. Distinct (adsetId, adName) — key bằng adsetId thay vì adsetName
-  const adTuples: Array<{
-    adsetId: string;
-    projectId: string;
-    name: string;
-    formName: string | null;
-  }> = [];
+  const adsetIdByKey = new Map<string, string>(); // `${campaignId}\x00${normKey}` → id
+  for (const a of existingAdsets) {
+    adsetIdByKey.set(`${a.campaignId}\x00${entityLookupKey(a.name)}`, a.id);
+  }
+  const toInsertAdsets: Array<{ campaignId: string; name: string }> = [];
+  const adsetSeen = new Set<string>();
   for (const r of rows) {
-    if (r.campaignName && r.adsetName && r.adName) {
-      const cid = campaignMap.get(r.campaignName);
-      if (!cid) continue;
-      const adsetId = adsetMap.get(`${cid}\x00${r.adsetName}`);
-      if (!adsetId) continue;
-      adTuples.push({
-        adsetId,
-        projectId,
-        name: r.adName,
-        formName: r.formName,
+    if (!r.campaignName || !r.adsetName) continue;
+    const cid = campaignMap.get(r.campaignName);
+    if (!cid) continue;
+    const key = `${cid}\x00${entityLookupKey(r.adsetName)}`;
+    if (adsetIdByKey.has(key) || adsetSeen.has(key)) continue;
+    toInsertAdsets.push({ campaignId: cid, name: r.adsetName });
+    adsetSeen.add(key);
+  }
+  if (toInsertAdsets.length > 0) {
+    const inserted = await db
+      .insert(adsets)
+      .values(toInsertAdsets)
+      .onConflictDoNothing()
+      .returning({
+        id: adsets.id,
+        campaignId: adsets.campaignId,
+        name: adsets.name,
       });
+    for (const a of inserted) {
+      adsetIdByKey.set(`${a.campaignId}\x00${entityLookupKey(a.name)}`, a.id);
     }
   }
-
-  // Dedupe ad tuples theo (adsetId, name)
-  const adSeen = new Set<string>();
-  const adUnique = adTuples.filter((a) => {
-    const k = `${a.adsetId}\x00${a.name}`;
-    if (adSeen.has(k)) return false;
-    adSeen.add(k);
-    return true;
-  });
-
-  if (adUnique.length > 0) {
-    await db.insert(ads).values(adUnique).onConflictDoNothing();
+  // adsetMap: original (campaignId, csvAdsetName) → id
+  const adsetMap = new Map<string, string>();
+  for (const r of rows) {
+    if (!r.campaignName || !r.adsetName) continue;
+    const cid = campaignMap.get(r.campaignName);
+    if (!cid) continue;
+    const id = adsetIdByKey.get(`${cid}\x00${entityLookupKey(r.adsetName)}`);
+    if (id) adsetMap.set(`${cid}\x00${r.adsetName}`, id);
   }
 
-  const distinctAdsetIds = [...new Set(adUnique.map((a) => a.adsetId))];
-  const adRows =
+  // 3. Ads — same pattern
+  const distinctAdsetIds = [...new Set(adsetMap.values())];
+  const existingAds =
     distinctAdsetIds.length > 0
       ? await db
           .select({
@@ -234,12 +247,53 @@ async function buildAdTaxonomyMaps(
           .from(ads)
           .where(inArray(ads.adsetId, distinctAdsetIds))
       : [];
-  const adMap = new Map<string, string>(
-    adRows.map((a: { id: string; adsetId: string; name: string }) => [
-      `${a.adsetId}\x00${a.name}`,
-      a.id,
-    ]),
-  );
+  const adIdByKey = new Map<string, string>();
+  for (const a of existingAds) {
+    adIdByKey.set(`${a.adsetId}\x00${entityLookupKey(a.name)}`, a.id);
+  }
+  const toInsertAds: Array<{
+    adsetId: string;
+    projectId: string;
+    name: string;
+    formName: string | null;
+  }> = [];
+  const adSeen = new Set<string>();
+  for (const r of rows) {
+    if (!r.campaignName || !r.adsetName || !r.adName) continue;
+    const cid = campaignMap.get(r.campaignName);
+    if (!cid) continue;
+    const asid = adsetMap.get(`${cid}\x00${r.adsetName}`);
+    if (!asid) continue;
+    const key = `${asid}\x00${entityLookupKey(r.adName)}`;
+    if (adIdByKey.has(key) || adSeen.has(key)) continue;
+    toInsertAds.push({
+      adsetId: asid,
+      projectId,
+      name: r.adName,
+      formName: r.formName,
+    });
+    adSeen.add(key);
+  }
+  if (toInsertAds.length > 0) {
+    const inserted = await db
+      .insert(ads)
+      .values(toInsertAds)
+      .onConflictDoNothing()
+      .returning({ id: ads.id, adsetId: ads.adsetId, name: ads.name });
+    for (const a of inserted) {
+      adIdByKey.set(`${a.adsetId}\x00${entityLookupKey(a.name)}`, a.id);
+    }
+  }
+  const adMap = new Map<string, string>();
+  for (const r of rows) {
+    if (!r.campaignName || !r.adsetName || !r.adName) continue;
+    const cid = campaignMap.get(r.campaignName);
+    if (!cid) continue;
+    const asid = adsetMap.get(`${cid}\x00${r.adsetName}`);
+    if (!asid) continue;
+    const id = adIdByKey.get(`${asid}\x00${entityLookupKey(r.adName)}`);
+    if (id) adMap.set(`${asid}\x00${r.adName}`, id);
+  }
 
   return { campaignMap, adsetMap, adMap };
 }
@@ -315,6 +369,9 @@ export async function ingestFacebookRows(
   // Step 1: Build ads taxonomy maps (~6 queries cho cả batch)
   const adMaps = await buildAdTaxonomyMaps(ctx.projectId, rows);
 
+  // Step 1b: Load stage alias map (case-insensitive) — for "Tình trạng" column
+  const aliasMap = await loadStageAliasMap();
+
   // Step 2: Pre-load candidates cho tất cả tên (1 query)
   const incomingNames = [
     ...new Set(rows.map((r) => r.fullNameNormalized).filter(Boolean)),
@@ -340,6 +397,17 @@ export async function ingestFacebookRows(
     reason: string;
   }> = [];
 
+  // Collect stage events for insert on both new + updated leads
+  const stageEvents: Array<{
+    leadId: string;
+    projectId: string;
+    fromStageId: string | null;
+    toStageId: string | null;
+    source: "csv_facebook";
+  }> = [];
+  // For toInsert we don't know leadId yet — defer via marker index
+  const pendingInsertStageEvents: Array<{ idx: number; stageId: string }> = [];
+
   for (const row of rows) {
     const ad = resolveAdIds(row, adMaps);
     const matchCandidates = candidatesByName.get(row.fullNameNormalized) ?? [];
@@ -350,6 +418,16 @@ export async function ingestFacebookRows(
       },
       matchCandidates,
     );
+
+    // Resolve stage from "Tình trạng" column if present
+    let stageId: string | null = null;
+    if (row.rawStage) {
+      const stageRes = resolveStage(row.rawStage, aliasMap);
+      if (stageRes.kind === "matched") stageId = stageRes.stageId;
+      else if (stageRes.kind === "pending" || stageRes.kind === "unknown") {
+        summary.pendingAliases++;
+      }
+    }
 
     if (match.kind === "conflict") {
       conflictRows.push({
@@ -375,14 +453,27 @@ export async function ingestFacebookRows(
           formName: row.formName,
           formAnswers: row.formAnswers,
           fbCreatedAt: row.fbCreatedAt,
+          ...(stageId ? { currentStageId: stageId } : {}),
           updatedAt: new Date(),
         },
       });
+      // Record stage change event (best-effort: we don't pre-load prev stage,
+      // always write event when FB brings a stage). Consumers can dedupe.
+      if (stageId) {
+        stageEvents.push({
+          leadId: match.leadId,
+          projectId: ctx.projectId,
+          fromStageId: null,
+          toStageId: stageId,
+          source: "csv_facebook",
+        });
+      }
       summary.updated++;
       continue;
     }
 
     // no-match → bulk insert
+    const insertIdx = toInsert.length;
     toInsert.push({
       projectId: ctx.projectId,
       fullName: row.fullName,
@@ -397,21 +488,50 @@ export async function ingestFacebookRows(
       formName: row.formName,
       formAnswers: row.formAnswers,
       fbCreatedAt: row.fbCreatedAt,
+      currentStageId: stageId,
     });
+    if (stageId) {
+      pendingInsertStageEvents.push({ idx: insertIdx, stageId });
+    }
     summary.inserted++;
   }
 
-  // Step 4: Bulk INSERT (Postgres limit ~65k params/query → chunk 500 rows)
+  // Step 4: Bulk INSERT with RETURNING id (so we can attach stage events)
+  const insertedIds: string[] = [];
   for (let i = 0; i < toInsert.length; i += 500) {
     const chunk = toInsert.slice(i, i + 500);
     if (chunk.length > 0) {
-      await db.insert(leads).values(chunk);
+      const ret = await db
+        .insert(leads)
+        .values(chunk)
+        .returning({ id: leads.id });
+      for (const r of ret) insertedIds.push(r.id);
+    }
+  }
+  // Attach stage events for newly-inserted leads with a stage
+  for (const p of pendingInsertStageEvents) {
+    const leadId = insertedIds[p.idx];
+    if (leadId) {
+      stageEvents.push({
+        leadId,
+        projectId: ctx.projectId,
+        fromStageId: null,
+        toStageId: p.stageId,
+        source: "csv_facebook",
+      });
     }
   }
 
   // Step 5: Updates (vẫn per-row vì set khác nhau, nhưng số ít)
   for (const u of toUpdate) {
     await db.update(leads).set(u.set).where(eq(leads.id, u.id));
+  }
+
+  // Step 5b: Bulk insert stage events
+  if (stageEvents.length > 0) {
+    for (let i = 0; i < stageEvents.length; i += 500) {
+      await db.insert(leadStageEvents).values(stageEvents.slice(i, i + 500));
+    }
   }
 
   // Step 6: Bulk insert conflicts
@@ -424,6 +544,43 @@ export async function ingestFacebookRows(
   // khi file FB Leads thuần (không có cột Insights).
   await aggregateAndUpsertMonthlySpend(rows, ctx.projectId);
 
+  return summary;
+}
+
+/**
+ * Ingest cost CSV (BC NGÂN SÁCH) — upsert daily rows vào project_costs
+ * với source='manual'. Idempotent qua unique (projectId, periodDate, source).
+ */
+export async function ingestCostRows(
+  rows: Array<{ periodDate: string; amount: number }>,
+  ctx: UpsertContext,
+): Promise<UpsertSummary> {
+  const summary: UpsertSummary = {
+    inserted: 0,
+    updated: 0,
+    conflicts: 0,
+    pendingAliases: 0,
+  };
+  for (const r of rows) {
+    const result = await db
+      .insert(projectCosts)
+      .values({
+        projectId: ctx.projectId,
+        periodDate: r.periodDate,
+        amount: r.amount.toString(),
+        source: "manual",
+      })
+      .onConflictDoUpdate({
+        target: [
+          projectCosts.projectId,
+          projectCosts.periodDate,
+          projectCosts.source,
+        ],
+        set: { amount: r.amount.toString() },
+      })
+      .returning({ id: projectCosts.id });
+    if (result.length > 0) summary.inserted++;
+  }
   return summary;
 }
 

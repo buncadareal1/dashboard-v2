@@ -7,6 +7,7 @@ import {
   FolderKanban,
   BarChart3,
   Settings,
+  AlertTriangle,
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -39,6 +40,12 @@ const NAV_ITEMS: NavItem[] = [
     href: "/report",
     icon: BarChart3,
     visibleFor: ["admin", "digital", "gdda"],
+  },
+  {
+    label: "Xung đột",
+    href: "/conflicts",
+    icon: AlertTriangle,
+    visibleFor: ["admin"],
   },
   {
     label: "Settings",

@@ -4,9 +4,19 @@ import {
   text,
   pgEnum,
   timestamp,
-  unique,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { projects } from "./projects";
+
+/**
+ * Normalized name expression for case/whitespace-insensitive uniqueness:
+ * LOWER(TRIM(REGEXP_REPLACE(name, '\s+', ' ', 'g')))
+ */
+const normalizedNameExpr = (col: string) =>
+  sql.raw(
+    `lower(trim(regexp_replace(${col}, '\\s+', ' ', 'g')))`,
+  );
 
 export const campaignStatusEnum = pgEnum("campaign_status_label", [
   "on",
@@ -31,7 +41,12 @@ export const campaigns = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [unique("campaigns_project_name_uk").on(t.projectId, t.name)],
+  (t) => [
+    uniqueIndex("campaigns_project_name_norm_uk").on(
+      t.projectId,
+      normalizedNameExpr("name"),
+    ),
+  ],
 );
 
 export const adsets = pgTable(
@@ -43,7 +58,12 @@ export const adsets = pgTable(
       .references(() => campaigns.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
   },
-  (t) => [unique("adsets_campaign_name_uk").on(t.campaignId, t.name)],
+  (t) => [
+    uniqueIndex("adsets_campaign_name_norm_uk").on(
+      t.campaignId,
+      normalizedNameExpr("name"),
+    ),
+  ],
 );
 
 export const ads = pgTable(
@@ -60,7 +80,12 @@ export const ads = pgTable(
     formName: text("form_name"),
     thumbnailUrl: text("thumbnail_url"),
   },
-  (t) => [unique("ads_adset_name_uk").on(t.adsetId, t.name)],
+  (t) => [
+    uniqueIndex("ads_adset_name_norm_uk").on(
+      t.adsetId,
+      normalizedNameExpr("name"),
+    ),
+  ],
 );
 
 export type Campaign = typeof campaigns.$inferSelect;

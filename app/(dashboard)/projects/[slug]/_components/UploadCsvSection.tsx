@@ -29,7 +29,7 @@ export function UploadCsvSection({
   canEdit,
 }: UploadCsvSectionProps) {
   const router = useRouter();
-  const [openType, setOpenType] = useState<"facebook" | "bitrix" | null>(null);
+  const [openType, setOpenType] = useState<"facebook" | "bitrix" | "cost" | null>(null);
   const [pending, startTransition] = useTransition();
   const [progress, setProgress] = useState<string | null>(null);
 
@@ -43,7 +43,7 @@ export function UploadCsvSection({
     );
   }
 
-  async function handleUpload(file: File, type: "facebook" | "bitrix") {
+  async function handleUpload(file: File, type: "facebook" | "bitrix" | "cost") {
     setProgress("Đang upload...");
     const formData = new FormData();
     formData.append("file", file);
@@ -126,6 +126,14 @@ export function UploadCsvSection({
               <Upload className="mr-1 h-4 w-4" />
               Upload Bitrix CSV
             </Button>
+            <Button
+              variant="outline"
+              onClick={() => setOpenType("cost")}
+              disabled={pending}
+            >
+              <Upload className="mr-1 h-4 w-4" />
+              Upload Chi phí CSV
+            </Button>
           </div>
         </div>
       </CardHeader>
@@ -162,12 +170,19 @@ export function UploadCsvSection({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              Upload CSV {openType === "facebook" ? "Facebook" : "Bitrix24"}
+              Upload CSV{" "}
+              {openType === "facebook"
+                ? "Facebook"
+                : openType === "bitrix"
+                ? "Bitrix24"
+                : "Chi phí"}
             </DialogTitle>
             <DialogDescription>
               {openType === "facebook"
-                ? "File CSV xuất từ Facebook Ads Manager. Yêu cầu cột: Created Time, Full Name, Phone, Campaign, Lead ID..."
-                : "File CSV chuyển từ Bitrix24. Yêu cầu cột: Lead, Stage, Responsible, Updated Time, Comment"}
+                ? "File CSV xuất từ Facebook Ads Manager. Yêu cầu cột: Created Time, Full Name, Phone, Campaign, Lead ID... Cột Tình trạng nếu có sẽ nhập stage luôn."
+                : openType === "bitrix"
+                ? "File CSV từ Bitrix24. Yêu cầu cột: Lead, Stage, Responsible, Updated Time, Comment. Chỉ dùng để CẬP NHẬT stage cho lead đã tồn tại."
+                : "File CSV báo cáo ngân sách. Yêu cầu cột: NGÀY (dd/MM/yyyy) + CHI TIÊU (vd 2.270.065 đ). Mỗi ngày 1 dòng. Re-upload sẽ override."}
             </DialogDescription>
           </DialogHeader>
 
@@ -224,7 +239,12 @@ function UploadRow({ upload }: { upload: UploadHistoryRow }) {
         <div>
           <p className="text-sm font-medium">{upload.filename}</p>
           <p className="text-xs text-muted-foreground">
-            {upload.type === "facebook" ? "Facebook" : "Bitrix"} ·{" "}
+            {upload.type === "facebook"
+              ? "Facebook"
+              : upload.type === "bitrix"
+              ? "Bitrix"
+              : "Chi phí"}{" "}
+            ·{" "}
             {formatDateTime(upload.createdAt)}
           </p>
         </div>
