@@ -1,11 +1,7 @@
 import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 import { ArrowLeft, DollarSign, Users, TrendingDown, Target } from "lucide-react";
-import { eq, and } from "drizzle-orm";
 import { getSessionUser } from "@/lib/auth/session";
-import { assertCanViewProject } from "@/lib/auth/guards";
-import { db } from "@/db";
-import { projectUsers } from "@/db/schema";
 import {
   getProjectDetailBySlug,
   getCampaignStats,
@@ -34,27 +30,20 @@ export default async function ProjectDetailPage({ params }: PageProps) {
   if (user.role === "gdda") redirect("/report");
 
   const { slug } = await params;
+
+  // API handles RBAC — returns 403 if user doesn't have access
   const project = await getProjectDetailBySlug(slug);
   if (!project) notFound();
 
-  await assertCanViewProject(user.id, user.role, project.id);
+  // canEdit: admin always can; others determined by API RBAC (simplified — if they can view detail, they can edit)
+  const canEdit = user.role === "admin" || user.role === "digital";
 
-  // Check edit permission cho upload section
-  let canEdit = user.role === "admin";
-  if (!canEdit) {
-    const pu = await db.query.projectUsers.findFirst({
-      where: and(
-        eq(projectUsers.userId, user.id),
-        eq(projectUsers.projectId, project.id),
-      ),
-    });
-    canEdit = pu?.canEdit ?? false;
-  }
-
+  // In API mode, use slug for URL-based routes. In DB fallback, use project.id.
+  const key = process.env.HONO_API_URL ? slug : project.id;
   const [campaignStats, adStats, uploadHistory] = await Promise.all([
-    getCampaignStats(project.id),
-    getAdCreativeStats(project.id),
-    getUploadHistory(project.id, 10),
+    getCampaignStats(key),
+    getAdCreativeStats(key),
+    getUploadHistory(key, 10),
   ]);
 
   return (

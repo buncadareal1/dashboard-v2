@@ -1,6 +1,4 @@
-import { eq, desc } from "drizzle-orm";
-import { db } from "@/db";
-import { csvUploads } from "@/db/schema";
+import { isApiMode, apiFetch } from "@/lib/api/client";
 
 export type UploadHistoryRow = {
   id: string;
@@ -10,29 +8,19 @@ export type UploadHistoryRow = {
   rowCount: number;
   parsedCount: number;
   errorCount: number;
-  createdAt: Date;
-  finishedAt: Date | null;
+  createdAt: Date | string;
+  finishedAt: Date | string | null;
 };
 
 export async function getUploadHistory(
-  projectId: string,
+  projectIdOrSlug: string,
   limit = 10,
 ): Promise<UploadHistoryRow[]> {
-  const rows = await db
-    .select({
-      id: csvUploads.id,
-      type: csvUploads.type,
-      filename: csvUploads.filename,
-      status: csvUploads.status,
-      rowCount: csvUploads.rowCount,
-      parsedCount: csvUploads.parsedCount,
-      errorCount: csvUploads.errorCount,
-      createdAt: csvUploads.createdAt,
-      finishedAt: csvUploads.finishedAt,
-    })
-    .from(csvUploads)
-    .where(eq(csvUploads.projectId, projectId))
-    .orderBy(desc(csvUploads.createdAt))
-    .limit(limit);
-  return rows as UploadHistoryRow[];
+  if (!isApiMode()) {
+    const { getUploadHistory: dbFn } = await import("./db/uploads");
+    return dbFn(projectIdOrSlug, limit);
+  }
+  return apiFetch<UploadHistoryRow[]>(
+    `/api/projects/${projectIdOrSlug}/uploads?limit=${limit}`,
+  );
 }

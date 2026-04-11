@@ -20,6 +20,9 @@ const CreateProjectSchema = z.object({
   location: z.string().optional(),
   fbAdAccountId: z.string().optional(),
   googleAdsId: z.string().optional(),
+  fbAppId: z.string().optional(),
+  fbAppSecret: z.string().optional(),
+  fbAccessToken: z.string().optional(),
   fanpageNames: z.array(z.string()).optional(), // sẽ tạo fanpage nếu chưa có
   digitalUserIds: z.array(z.string().uuid()).optional(),
   gddaUserIds: z.array(z.string().uuid()).optional(),
@@ -32,6 +35,9 @@ const UpdateProjectSchema = z.object({
   location: z.string().optional(),
   fbAdAccountId: z.string().optional(),
   googleAdsId: z.string().optional(),
+  fbAppId: z.string().optional(),
+  fbAppSecret: z.string().optional(),
+  fbAccessToken: z.string().optional(),
   fanpageNames: z.array(z.string()).optional(),
   digitalUserIds: z.array(z.string().uuid()).optional(),
   gddaUserIds: z.array(z.string().uuid()).optional(),
@@ -78,6 +84,9 @@ export async function createProjectAction(input: CreateProjectInput) {
       location: parsed.location ?? null,
       fbAdAccountId: parsed.fbAdAccountId ?? null,
       googleAdsId: parsed.googleAdsId ?? null,
+      fbAppId: parsed.fbAppId ?? null,
+      fbAppSecret: parsed.fbAppSecret ?? null,
+      fbAccessToken: parsed.fbAccessToken ?? null,
       status: "running",
       createdBy: user.id,
     })
@@ -185,6 +194,9 @@ export async function updateProjectAction(
       location: parsed.location ?? null,
       fbAdAccountId: parsed.fbAdAccountId ?? null,
       googleAdsId: parsed.googleAdsId ?? null,
+      fbAppId: parsed.fbAppId ?? null,
+      fbAppSecret: parsed.fbAppSecret ?? null,
+      fbAccessToken: parsed.fbAccessToken ?? null,
       updatedAt: new Date(),
     })
     .where(eq(projects.id, project.id));

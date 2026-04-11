@@ -52,6 +52,8 @@ interface LeadDetailTableProps {
   total: number;
   currentPage: number;
   pageSize: number;
+  /** Current search params to preserve when paginating */
+  searchParams?: Record<string, string | undefined>;
 }
 
 export function LeadDetailTable({
@@ -59,8 +61,19 @@ export function LeadDetailTable({
   total,
   currentPage,
   pageSize,
+  searchParams = {},
 }: LeadDetailTableProps) {
   const totalPages = Math.ceil(total / pageSize);
+
+  /** Build page URL preserving current filters */
+  function pageUrl(page: number): string {
+    const sp = new URLSearchParams();
+    for (const [k, v] of Object.entries(searchParams)) {
+      if (v && k !== "page") sp.set(k, v);
+    }
+    sp.set("page", String(page));
+    return `/report?${sp.toString()}`;
+  }
 
   if (rows.length === 0) {
     return (
@@ -82,6 +95,7 @@ export function LeadDetailTable({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Cập nhật</TableHead>
               <TableHead>Created Time</TableHead>
               <TableHead>Full Name</TableHead>
               <TableHead>Email</TableHead>
@@ -99,6 +113,9 @@ export function LeadDetailTable({
           <TableBody>
             {rows.map((r) => (
               <TableRow key={r.id}>
+                <TableCell className="whitespace-nowrap text-xs font-medium text-foreground">
+                  {formatDateTimeVN((r as Record<string, unknown>).updatedAt as Date | string | null)}
+                </TableCell>
                 <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
                   {formatDateTimeVN(r.fbCreatedAt)}
                 </TableCell>
@@ -152,7 +169,7 @@ export function LeadDetailTable({
             {/* Prev */}
             {currentPage > 1 ? (
               <Link
-                href={`/report?page=${currentPage - 1}`}
+                href={pageUrl(currentPage - 1)}
                 className="rounded-md border px-2.5 py-1 text-sm hover:bg-muted"
               >
                 ‹
@@ -172,7 +189,7 @@ export function LeadDetailTable({
               ) : (
                 <Link
                   key={p}
-                  href={`/report?page=${p}`}
+                  href={pageUrl(p)}
                   className={cn(
                     "min-w-[32px] rounded-md px-2.5 py-1 text-center text-sm transition-colors",
                     p === currentPage
@@ -188,7 +205,7 @@ export function LeadDetailTable({
             {/* Next */}
             {currentPage < totalPages ? (
               <Link
-                href={`/report?page=${currentPage + 1}`}
+                href={pageUrl(currentPage + 1)}
                 className="rounded-md border px-2.5 py-1 text-sm hover:bg-muted"
               >
                 ›

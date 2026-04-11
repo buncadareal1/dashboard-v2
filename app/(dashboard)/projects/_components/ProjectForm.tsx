@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,6 +21,9 @@ export interface ProjectFormDefaults {
   location: string;
   fbAdAccountId: string;
   googleAdsId: string;
+  fbAppId: string;
+  fbAppSecret: string;
+  fbAccessToken: string;
   fanpageNames: string;
   digitalUserIds: string[];
   gddaUserIds: string[];
@@ -37,6 +41,9 @@ const EMPTY_DEFAULTS: ProjectFormDefaults = {
   location: "",
   fbAdAccountId: "",
   googleAdsId: "",
+  fbAppId: "",
+  fbAppSecret: "",
+  fbAccessToken: "",
   fanpageNames: "",
   digitalUserIds: [],
   gddaUserIds: [],
@@ -54,6 +61,7 @@ export function ProjectForm({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [fbOpen, setFbOpen] = useState(false);
 
   const initial = defaultValues ?? EMPTY_DEFAULTS;
   const [digitalIds, setDigitalIds] = useState<string[]>(initial.digitalUserIds);
@@ -77,6 +85,10 @@ export function ProjectForm({
         (formData.get("fbAdAccountId") as string)?.trim() || undefined,
       googleAdsId:
         (formData.get("googleAdsId") as string)?.trim() || undefined,
+      fbAppId: (formData.get("fbAppId") as string)?.trim() || undefined,
+      fbAppSecret: (formData.get("fbAppSecret") as string)?.trim() || undefined,
+      fbAccessToken:
+        (formData.get("fbAccessToken") as string)?.trim() || undefined,
       fanpageNames,
       digitalUserIds: digitalIds,
       gddaUserIds: gddaIds,
@@ -126,17 +138,62 @@ export function ProjectForm({
         defaultValue={initial.location}
       />
       <Field
-        label="Facebook Ad Account ID"
-        name="fbAdAccountId"
-        placeholder="VD: act_1234567890"
-        defaultValue={initial.fbAdAccountId}
-      />
-      <Field
         label="Google Ads Account (optional)"
         name="googleAdsId"
         placeholder="VD: 123-456-7890"
         defaultValue={initial.googleAdsId}
       />
+
+      {/* Collapsible Facebook API credentials section */}
+      <div className="rounded-lg border">
+        <button
+          type="button"
+          onClick={() => setFbOpen((o) => !o)}
+          className="flex w-full items-center justify-between px-4 py-3 text-left text-sm font-medium hover:bg-muted/50"
+        >
+          <span>Kết nối Facebook API</span>
+          {fbOpen ? (
+            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          )}
+        </button>
+        {fbOpen && (
+          <div className="space-y-4 border-t px-4 py-4">
+            <p className="text-xs text-muted-foreground">
+              Thông tin xác thực Facebook API riêng cho dự án này. Để trống nếu
+              dùng cấu hình mặc định của hệ thống.
+            </p>
+            <Field
+              label="FB App ID"
+              name="fbAppId"
+              placeholder="VD: 1234567890123456"
+              defaultValue={initial.fbAppId}
+            />
+            <Field
+              label="FB App Secret"
+              name="fbAppSecret"
+              type="password"
+              placeholder="Nhập App Secret"
+              defaultValue={initial.fbAppSecret}
+            />
+            <Field
+              label="FB Access Token"
+              name="fbAccessToken"
+              type="password"
+              placeholder="Nhập Access Token"
+              defaultValue={initial.fbAccessToken}
+            />
+            <Field
+              label="FB Ad Account ID"
+              name="fbAdAccountId"
+              placeholder="act_xxxxxxxxx"
+              defaultValue={initial.fbAdAccountId}
+            />
+          </div>
+        )}
+      </div>
+
       <Field
         label="Fanpages (phân tách bằng dấu phẩy)"
         name="fanpageNames"

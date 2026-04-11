@@ -1,6 +1,4 @@
-import { eq, and, desc } from "drizzle-orm";
-import { db } from "@/db";
-import { matchConflicts, csvUploads, projects } from "@/db/schema";
+import { isApiMode, apiFetch } from "@/lib/api/client";
 
 export type ConflictRow = {
   id: string;
@@ -10,36 +8,16 @@ export type ConflictRow = {
   csvFilename: string;
   csvType: "facebook" | "bitrix";
   projectName: string;
-  createdAt: Date;
+  createdAt: Date | string;
 };
 
 export async function getUnresolvedConflicts(
   projectId?: string,
 ): Promise<ConflictRow[]> {
-  const where = projectId
-    ? and(
-        eq(matchConflicts.resolved, false),
-        eq(csvUploads.projectId, projectId),
-      )
-    : eq(matchConflicts.resolved, false);
-
-  const rows = await db
-    .select({
-      id: matchConflicts.id,
-      reason: matchConflicts.reason,
-      candidates: matchConflicts.candidates,
-      csvUploadId: matchConflicts.csvUploadId,
-      csvFilename: csvUploads.filename,
-      csvType: csvUploads.type,
-      projectName: projects.name,
-      createdAt: matchConflicts.createdAt,
-    })
-    .from(matchConflicts)
-    .innerJoin(csvUploads, eq(matchConflicts.csvUploadId, csvUploads.id))
-    .innerJoin(projects, eq(csvUploads.projectId, projects.id))
-    .where(where)
-    .orderBy(desc(matchConflicts.createdAt))
-    .limit(50);
-
-  return rows as ConflictRow[];
+  if (!isApiMode()) {
+    const { getUnresolvedConflicts: dbFn } = await import("./db/conflicts");
+    return dbFn(projectId);
+  }
+  const qs = projectId ? `?projectId=${projectId}` : "";
+  return apiFetch<ConflictRow[]>(`/api/conflicts${qs}`);
 }

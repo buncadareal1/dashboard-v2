@@ -1,5 +1,6 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Users, TrendingUp, Phone, CalendarCheck, Trophy } from "lucide-react";
+import { Users, TrendingUp, Phone, CalendarCheck, Trophy, ArrowLeft } from "lucide-react";
 import { getSessionUser } from "@/lib/auth/session";
 import {
   getReportStatCards,
@@ -9,10 +10,12 @@ import {
   getByFanpage,
 } from "@/lib/queries/report";
 import { getReportFilterOptions } from "@/lib/queries/report-filters";
+import { getProjectsForUser } from "@/lib/queries/projects";
 import { Card, CardContent } from "@/components/ui/card";
 import { LeadDetailTable } from "./_components/LeadDetailTable";
 import { GddaReportTabs } from "./_components/GddaReportTabs";
 import { ReportFilters } from "./_components/ReportFilters";
+import { ProjectSelector } from "../_components/ProjectSelector";
 import { formatNumber } from "@/lib/utils/format";
 
 interface PageProps {
@@ -29,9 +32,24 @@ export default async function ReportDataPage({ searchParams }: PageProps) {
   if (!user) redirect("/login");
 
   const params = await searchParams;
-  const page = parseInt(params.page ?? "1", 10);
 
   const isAdminOrDigital = user.role === "admin" || user.role === "digital";
+
+  // No project selected and user is admin/digital — show project selection screen
+  // gdda users see all their data without needing to pick a project
+  if (!params.project && isAdminOrDigital) {
+    const projects = await getProjectsForUser({ userId: user.id, role: user.role });
+    return (
+      <ProjectSelector
+        projects={projects}
+        basePath="/report"
+        title="Report Data — CRM"
+        description="Chọn dự án để xem dữ liệu lead"
+      />
+    );
+  }
+
+  const page = parseInt(params.page ?? "1", 10);
   const projectIds = params.project ? [params.project] : undefined;
 
   const [stats, leadDetail, filterOptions, summaryByDate, byEmployee, byFanpage] =
@@ -53,7 +71,7 @@ export default async function ReportDataPage({ searchParams }: PageProps) {
         pageSize: 50,
       }),
       isAdminOrDigital
-        ? getReportFilterOptions({ userId: user.id, role: user.role })
+        ? getReportFilterOptions({ userId: user.id, role: user.role, projectId: params.project })
         : Promise.resolve({ projects: [], stages: [] }),
       user.role === "gdda"
         ? getSummaryByDate({ userId: user.id, role: user.role })
@@ -69,6 +87,17 @@ export default async function ReportDataPage({ searchParams }: PageProps) {
   return (
     <div className="space-y-6">
       <div>
+        {/* Back link — chỉ hiển thị khi đang xem một dự án cụ thể */}
+        {params.project && isAdminOrDigital && (
+          <Link
+            href="/report"
+            className="mb-3 inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Chọn dự án khác
+          </Link>
+        )}
+
         <h1 className="text-2xl font-semibold">Report Data — CRM</h1>
         <p className="text-sm text-muted-foreground">
           Quản lý toàn bộ data lead từ các kênh quảng cáo
@@ -133,6 +162,7 @@ export default async function ReportDataPage({ searchParams }: PageProps) {
               total={leadDetail.total}
               currentPage={page}
               pageSize={50}
+              searchParams={params}
             />
           </CardContent>
         </Card>

@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "paths": {
+      "@dashboard/db": ["../../packages/db/index.ts"],
+      "@dashboard/db/*": ["../../packages/db/*"]
+    }
+  },
+  "include": ["src/**/*.ts"]
+}

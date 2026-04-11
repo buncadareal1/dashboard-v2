@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   FolderKanban,
   BarChart3,
+  TrendingUp,
   Settings,
   AlertTriangle,
   Bot,
@@ -43,6 +44,12 @@ const NAV_ITEMS: NavItem[] = [
     href: "/report",
     icon: BarChart3,
     visibleFor: ["admin", "digital", "gdda"],
+  },
+  {
+    label: "Phân tích Campaign",
+    href: "/report/campaigns",
+    icon: TrendingUp,
+    visibleFor: ["admin", "digital"],
   },
   {
     label: "Xung đột",
@@ -99,7 +106,8 @@ export function Sidebar({ user, devUsers, showAiChat }: SidebarProps) {
             const isActive =
               item.href === "/"
                 ? pathname === "/"
-                : pathname.startsWith(item.href);
+                : pathname === item.href ||
+                  pathname.startsWith(item.href + "/");
             const Icon = item.icon;
             return (
               <Link
