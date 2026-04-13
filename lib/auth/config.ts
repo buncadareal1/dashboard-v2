@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users, accounts, sessions, verificationTokens } from "@/db/schema";
 import type { UserRole } from "@/db/schema";
+import { notifyNewUserPending } from "@/lib/services/notifications";
 
 const isDev = process.env.NODE_ENV !== "production";
 
@@ -119,6 +120,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           })
           .returning();
         dbUser = newUser;
+        // Notify admins about new pending user (fire-and-forget)
+        notifyNewUserPending(
+          dbUser.name ?? email.split("@")[0],
+          email,
+        ).catch(() => {/* non-blocking */});
         // Redirect to pending page
         return "/pending";
       }

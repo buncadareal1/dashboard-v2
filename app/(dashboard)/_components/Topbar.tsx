@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { Plus, Bell, LogOut } from "lucide-react";
+import { Plus, LogOut } from "lucide-react";
 import { signOut } from "@/lib/auth/config";
 import { Button } from "@/components/ui/button";
 import { ProjectSearch } from "./ProjectSearch";
+import { NotificationBell } from "./NotificationBell";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,9 +47,7 @@ export function Topbar({ user }: TopbarProps) {
       )}
 
       {/* Notification bell */}
-      <Button variant="ghost" size="icon" aria-label="Thông báo">
-        <Bell className="h-5 w-5" />
-      </Button>
+      <NotificationBell />
 
       {/* User menu */}
       <DropdownMenu>

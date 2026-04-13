@@ -170,13 +170,44 @@ export default async function SettingsPage() {
         {/* Sub-tab 3: Thông báo */}
         <TabsContent value="notifications">
           <Card>
-            <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-              <p className="text-base font-medium">🔔 Thông báo</p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Hệ thống notification sẽ khả dụng ở Phase 2.
+            <CardHeader>
+              <h2 className="text-base font-semibold">Thông báo</h2>
+              <p className="text-sm text-muted-foreground">
+                Hệ thống thông báo tự động cho admin.
               </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                (CSV upload done/fail, match conflict, lead mới realtime)
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-3">
+                <div className="flex items-start gap-3 rounded-lg border p-3">
+                  <div className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-green-500" />
+                  <div>
+                    <p className="text-sm font-medium">Tài khoản mới chờ duyệt</p>
+                    <p className="text-xs text-muted-foreground">
+                      Thông báo in-app + email khi có người đăng nhập lần đầu và chờ kích hoạt.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 rounded-lg border p-3">
+                  <div className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-green-500" />
+                  <div>
+                    <p className="text-sm font-medium">Upload CSV</p>
+                    <p className="text-xs text-muted-foreground">
+                      Thông báo in-app + email khi có người upload file CSV lên dự án.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3 rounded-lg border p-3">
+                  <div className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-green-500" />
+                  <div>
+                    <p className="text-sm font-medium">Email kích hoạt tài khoản</p>
+                    <p className="text-xs text-muted-foreground">
+                      Tự động gửi email cho user khi admin kích hoạt tài khoản.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Cấu hình email: set RESEND_API_KEY trong environment variables.
               </p>
             </CardContent>
           </Card>

@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { users, projectUsers } from "@/db/schema";
 import { assertRole } from "@/lib/auth/guards";
 import { requireSession } from "@/lib/auth/session";
+import { sendEmail, accountActivatedEmailHtml } from "@/lib/services/email";
 
 const CreateUserSchema = z.object({
   name: z.string().min(1, "Họ tên không được rỗng"),
@@ -58,6 +59,20 @@ export async function deactivateUserAction(userId: string) {
 export async function activateUserAction(userId: string) {
   await assertRole(["admin"]);
   await db.update(users).set({ active: true }).where(eq(users.id, userId));
+
+  // Send welcome email to activated user (fire-and-forget)
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, userId),
+    columns: { email: true, name: true },
+  });
+  if (user) {
+    sendEmail({
+      to: user.email,
+      subject: "[Smartland] Tài khoản đã được kích hoạt",
+      html: accountActivatedEmailHtml(user.name ?? user.email.split("@")[0]),
+    }).catch(() => {/* non-blocking */});
+  }
+
   revalidatePath("/settings");
 }
 

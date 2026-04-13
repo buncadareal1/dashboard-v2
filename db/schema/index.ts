@@ -7,3 +7,4 @@ export * from "./leads";
 export * from "./ops";
 export * from "./chat";
 export * from "./fb-insights";
+export * from "./notifications";

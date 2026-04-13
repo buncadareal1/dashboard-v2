@@ -16,6 +16,8 @@ import {
   ingestCostRows,
 } from "@/lib/csv/upsert-service";
 import { rebuildAllAggregatesForProject } from "@/lib/aggregates/builder";
+import { notifyCsvUpload } from "@/lib/services/notifications";
+import { projects } from "@/db/schema";
 
 /**
  * POST /api/upload/csv
@@ -184,6 +186,22 @@ export async function POST(req: Request) {
         errorLog: summary,
       })
       .where(eq(csvUploads.id, upload.id));
+
+    // Notify admins about successful upload (fire-and-forget)
+    const project = await db.query.projects.findFirst({
+      where: eq(projects.id, parsed.data.projectId),
+      columns: { name: true },
+    });
+    notifyCsvUpload({
+      uploaderName: user.name ?? user.email ?? "Unknown",
+      uploaderEmail: user.email ?? "",
+      filename: file.name,
+      projectName: project?.name ?? "Unknown",
+      projectId: parsed.data.projectId,
+      uploadId: upload.id,
+      rowCount: summary.inserted + summary.updated,
+      status: "done",
+    }).catch(() => {/* non-blocking */});
 
     return NextResponse.json({
       uploadId: upload.id,
