@@ -1,357 +1,387 @@
-# Phase 2 — Facebook API Integration + Báo cáo Realtime
+# Phase 2 — Dashboard Lead BĐS Smartland
 
-> Ngày lập: 10/04/2026
-> Dựa trên: file `SunUC_Active_RealTime_Analysis_13.xlsx` + grill session
-> Kiến trúc tương lai: Hono API trên VPS + Postgres local (sau Phase 2)
-
----
-
-## 1. Mục tiêu
-
-Chuyển dashboard từ **CSV upload thủ công** sang **Facebook API realtime**:
-- Auto-sync campaigns/ads/leads/spend/CTR/CPL mỗi 15 phút
-- Webhook realtime khi có lead mới từ Facebook Lead Ads
-- Bitrix CRM **giữ nguyên CSV upload thủ công** (user update stage bằng tay)
-- Trang "Phân tích Campaign" mới giống layout file Excel báo cáo
+> **Tài liệu duy nhất** cho Phase 2. Cập nhật checkbox khi hoàn thành.
+> Timeline: 6 tuần (13/04/2026 → 25/05/2026)
+> GitHub: https://github.com/buncadareal1/dashboard-v2
+> Production: https://dashboard-v2-one-vert.vercel.app
+> VPS: 103.116.52.54:3001 (Hono API + BullMQ)
 
 ---
 
-## 2. Mapping chỉ số Excel → Facebook API
+## Kiến trúc
 
-### Từ file `SunUC_Active_RealTime_Analysis_13.xlsx`:
+```
+Vercel (Next.js 16 + Neon DB)     ← Frontend + Auth + DB queries
+VPS (Hono API + BullMQ + Redis)   ← Background jobs: FB sync, leads pull, cron
+Khi có domain → chuyển tất cả sang VPS
+```
 
-| # | Cột Excel | Source | Facebook API field | Endpoint | Auto |
-|---|---|---|---|---|---|
-| 1 | **Loại** (LF/MESS) | FB API | `campaign.objective` (LEAD_GENERATION / MESSAGES) | `/campaigns?fields=objective` | ✅ |
-| 2 | **Tên chiến dịch** | FB API | `campaign.name` | `/campaigns?fields=name` | ✅ |
-| 3 | **Tổng chi tiêu** | FB API | `insights.spend` | `/insights?fields=spend` | ✅ |
-| 4 | **Lead** | FB API | `insights.actions[type=lead]` | `/insights?fields=actions` | ✅ |
-| 5 | **CPL** | Computed | `spend / leads` | — | ✅ |
-| 6 | **CTR%** | FB API | `insights.ctr` | `/insights?fields=ctr` | ✅ |
-| 7 | **Freq** | FB API | `insights.frequency` | `/insights?fields=frequency` | ✅ |
-| 8 | **CPM** (trong nhận xét) | FB API | `insights.cpm` | `/insights?fields=cpm` | ✅ |
-| 9 | **Impressions** (hiển thị) | FB API | `insights.impressions` | `/insights?fields=impressions` | ✅ |
-| 10 | **F1** | Bitrix CSV | Manual upload | — | ❌ Manual |
-| 11 | **Rate CRM%** | Computed | `F1 / Lead × 100` | — | ✅ (khi có F1) |
-| 12 | **F1/Lead %** | Computed | Tương tự Rate | — | ✅ |
-| 13 | **CPL/F1** | Computed | `Spend / F1` | — | ✅ (khi có F1) |
-| 14 | **Hiệu quả** | Rule-based | Dựa CPL/F1 thresholds | — | ✅ Auto-rate |
-| 15 | **Chất lượng Content** | Rule-based | Dựa CTR + CPM | — | ✅ Auto-rate |
-| 16 | **Ưu tiên** | Manual | Admin set | — | ❌ Manual |
-| 17 | **Kế hoạch** | Manual | Admin set | — | ❌ Manual |
-| 18 | **Nhận xét Content** | Manual/AI | AI Analyst suggest | — | 🟡 AI assist |
-| 19 | **Hành động hôm nay** | Manual/AI | AI Analyst suggest | — | 🟡 AI assist |
-| 20 | **Người thực hiện** | Manual | Admin assign | — | ❌ Manual |
-| 21 | **Deadline** | Manual | Admin set | — | ❌ Manual |
+## Quyết định đã thống nhất
 
-**Tổng: 9 cột FB API auto + 4 cột computed + 2 cột AI assist + 6 cột manual = 21 cột**
+| Câu hỏi | Quyết định |
+|---|---|
+| Kiến trúc | Vercel + Neon (bây giờ), VPS-only khi có domain |
+| Meta Login | Có — submit App Review |
+| Ai login Meta | Digital (quản lý ad account) + Admin |
+| Data đổ vào project nào | Digital chọn project khi kết nối |
+| CSV upload | Giữ cả 3 (Facebook, Bitrix, Cost) — không bỏ gì |
+| FB insights sync | Daily incremental (time_range + time_increment=1) |
+| Timeline | 6 tuần, 2 ngày dev/tuần |
+
+## Trạng thái hiện tại (đã DONE)
+
+- ✅ Hono API 12 routes + BullMQ + PM2 trên VPS
+- ✅ FB API: campaign sync, insights sync, lead pull (script thủ công)
+- ✅ Campaign Analysis page: Excel layout, auto-rating, inline edit, date filter, project selector
+- ✅ Per-project FB credentials trong DB (fbAppId, fbAppSecret, fbAccessToken)
+- ✅ Auto-register pending users (Google login → pending → admin duyệt)
+- ✅ Role toggle dropdown trong Settings
+- ✅ Hướng dẫn sử dụng page + CSV templates
+- ✅ Timezone Asia/Ho_Chi_Minh
+- ✅ 220 API tests, dual-mode queries
+- ✅ Data: 2,928 leads, 251 campaigns, 195 insight rows
+- ✅ Project selector cards cho Report Data + Campaign Analysis
 
 ---
 
-## 3. Prerequisites (bạn phải làm trước)
+## Tuần 1: FB Sync + Monitoring (13-19/04)
 
-### 3.1 Facebook App Setup
+### 1.1 Daily incremental FB insights [Dev] — 1 ngày
 
-```
-1. Vào https://developers.facebook.com → Create App
-2. App Type: Business
-3. Add Product: Marketing API
-4. Settings → Basic:
-   - App Domains: dashboard-v2-one-vert.vercel.app, localhost
-   - Privacy Policy URL: https://smartland.vn/privacy (tạo 1 trang đơn giản)
-   - Terms of Service URL: https://smartland.vn/terms
-5. App Review → Request Permissions:
-   - ads_read (đọc campaigns, insights, spend)
-   - leads_retrieval (đọc lead forms)
-   - pages_read_engagement (đọc page info)
-   - pages_manage_metadata (setup webhook)
-6. Business Verification:
-   - Upload giấy phép kinh doanh Smartland
-   - Chờ Meta verify (1-3 ngày)
-7. Sau khi duyệt:
-   - Business Settings → System Users → New System User
-   - Role: Admin
-   - Generate Token với permissions trên
-   - Copy token → giao cho dev
-```
+**Vấn đề**: Sync dùng `date_preset=maximum` → 1 row lifetime. Cần daily data cho charts.
 
-### 3.2 Thông tin cần giao cho dev
+**Files sửa:**
+- `apps/api/src/services/fb/client.ts`
+  - [ ] Thêm `getCampaignInsightsRange(campaignId, since, until)` — dùng `time_range` + `time_increment=1`
+- `apps/api/src/services/fb/sync-insights.ts`
+  - [ ] Thêm `syncCampaignInsightsIncremental(client, adAccountId, since, until)`
+  - [ ] Mỗi call trả về 1 row/ngày thay vì 1 row lifetime
+- `apps/api/src/jobs/scheduler.ts`
+  - [ ] Đổi FB sync: daily lúc 06:00 VN, sync 7 ngày gần nhất (backfill)
+- `apps/api/src/jobs/sync-fb-insights.ts`
+  - [ ] Worker gọi incremental sync thay vì lifetime
 
-```env
-FB_APP_ID=                    # App ID
-FB_APP_SECRET=                # App Secret
-FB_SYSTEM_USER_TOKEN=         # Long-lived token (không expire)
-FB_AD_ACCOUNT_ID=act_xxxxx   # Ad Account ID(s) — có thể nhiều
-FB_PAGE_ID=                   # Page ID(s) cho webhook
-```
+**Verify**: `SELECT date, COUNT(*) FROM campaign_insights GROUP BY date ORDER BY date DESC LIMIT 10;` → nhiều ngày khác nhau
 
-### 3.3 Webhook Setup (sau khi App Review pass)
+### 1.2 Auto-pull leads mỗi 15 phút [Dev] — 0.5 ngày
 
-```
-1. Facebook App → Webhooks → Subscribe
-2. Object: Page
-3. Field: leadgen
-4. Callback URL: https://dashboard-v2-one-vert.vercel.app/api/webhooks/facebook
-5. Verify Token: <random string set trong env>
-```
+**Vấn đề**: Pull leads bằng script thủ công. Cần tự động.
 
----
+**Files mới:**
+- `apps/api/src/services/fb/sync-leads.ts`
+  - [ ] `syncLeadsFromAds(client, adAccountId, projectId, sinceMinutes=15)`
+  - [ ] Reuse logic từ `scripts/pull-fb-leads.ts` — normalize tên/SĐT VN, upsert by fbLeadId
 
-## 4. Schema mới cần thêm
+**Files sửa:**
+- `apps/api/src/jobs/scheduler.ts`
+  - [ ] Thêm job `fb-pull-leads`: pattern `*/15 * * * *`
 
-```typescript
-// db/schema/fb-insights.ts
+**Verify**: Leads mới từ FB tự xuất hiện trong Report Data không cần chạy script
 
-// Campaign insights (poll mỗi 15 phút)
-campaign_insights: {
-  id: uuid pk
-  campaignId: uuid → campaigns.id
-  date: date                    // ngày của insight
-  spend: numeric                // chi tiêu VND
-  impressions: integer          // lượt hiển thị
-  clicks: integer               // clicks
-  leads: integer                // action_type=lead
-  ctr: numeric                  // click-through rate %
-  cpm: numeric                  // cost per 1000 impressions
-  frequency: numeric            // tần suất
-  cpl: numeric                  // computed: spend / leads
-  fetchedAt: timestamptz        // lần fetch gần nhất
-}
-// unique (campaignId, date)
+### 1.3 Token expiry monitor [Dev] — 0.5 ngày
 
-// Ad-level insights (cho mẫu quảng cáo)
-ad_insights: {
-  id: uuid pk
-  adId: uuid → ads.id
-  date: date
-  spend: numeric
-  impressions: integer
-  clicks: integer
-  leads: integer
-  ctr: numeric
-  cpm: numeric
-  cpl: numeric
-  fetchedAt: timestamptz
-}
-// unique (adId, date)
+**Files mới:**
+- `app/(dashboard)/_components/TokenExpiryAlert.tsx` — banner cảnh báo admin khi token < 7 ngày
 
-// Campaign action plan (manual columns từ Excel)
-campaign_actions: {
-  id: uuid pk
-  campaignId: uuid → campaigns.id
-  priority: enum('urgent','today','week','none')     // 🔴🟠🟡
-  plan: text                                          // Kế hoạch
-  contentNote: text                                   // Nhận xét Content
-  todayAction: text                                   // Hành động hôm nay
-  actionDetail: text                                  // Chi tiết thực hiện
-  assignee: text                                      // Người thực hiện
-  deadline: date                                      // Deadline
-  updatedBy: uuid → users.id
-  updatedAt: timestamptz
-}
-// unique (campaignId) — 1 action plan per campaign
-```
+**Files sửa:**
+- `apps/api/src/services/fb/client.ts` — thêm `debugToken(token)`
+- `apps/api/src/routes/campaigns.ts` — thêm `GET /api/fb/token-status`
+- `apps/api/src/jobs/scheduler.ts` — daily job check token 07:00 VN
+- `app/(dashboard)/layout.tsx` — mount `<TokenExpiryAlert />` cho admin
+
+**Verify**: Dashboard hiện banner vàng/đỏ khi token sắp hết
+
+### 1.4 Submit FB App Review [Admin]
+
+- [ ] Business Verification: upload giấy phép kinh doanh Smartland
+- [ ] Privacy Policy page (Task 2.3)
+- [ ] Request permissions: `ads_read`, `leads_retrieval`, `pages_read_engagement`, `pages_manage_ads`
+- [ ] Video demo cách app sử dụng permissions
+- [ ] Submit review
+
+**Verify**: App status = "In Review" trên developers.facebook.com
 
 ---
 
-## 5. API endpoints mới
+## Tuần 2: Export + Charts (20-26/04)
 
-```
-# Facebook data sync (Inngest cron hoặc BullMQ trên VPS)
-POST /api/fb/sync-insights        # Pull insights cho tất cả active campaigns
-POST /api/fb/sync-campaigns       # Sync campaign list + status
-POST /api/fb/sync-ads             # Sync ad creatives + thumbnails
+### 2.1 Export Campaign Analysis ra Excel [Dev] — 1 ngày
 
-# Webhook (Facebook push realtime)
-GET  /api/webhooks/facebook       # Verify webhook (challenge response)
-POST /api/webhooks/facebook       # Receive leadgen events
+**Files mới:**
+- `lib/actions/export-campaign.ts` — server action tạo .xlsx bằng `exceljs`
+- `app/(dashboard)/report/campaigns/_components/ExportButton.tsx` — nút "Xuất Excel"
 
-# Campaign action plan (manual CRUD)
-GET  /api/campaigns/:id/action    # Get action plan
-PUT  /api/campaigns/:id/action    # Update action plan (priority, plan, assignee...)
+**Files sửa:**
+- `app/(dashboard)/report/campaigns/page.tsx` — thêm ExportButton vào header
+- `package.json` — thêm `exceljs`
 
-# New page: Phân tích Campaign Realtime
-GET  /report/campaigns            # Trang mới — layout giống Excel
-```
+**Format Excel:**
+- Sheet "Phân tích Campaign" — tất cả cột từ CampaignAnalysisRow
+- Header bold, freeze row đầu
+- Currency VND, percent CTR, conditional color cho HQ rating
 
----
+**Verify**: Click "Xuất Excel" → file .xlsx download, mở bằng Excel/Google Sheets OK
 
-## 6. Trang UI mới: "Phân tích Campaign"
+### 2.2 Dashboard charts [Dev] — 1.5 ngày
 
-### Layout giống file Excel — sidebar menu mới
+**Cần**: Daily insights data từ Task 1.1
 
-```
-┌──────────────────────────────────────────────────────────────────────────┐
-│ 📊 PHÂN TÍCH ACTIVE CAMPAIGNS — [Tên dự án]  ·  Cập nhật: 10/04/2026  │
-├──────────────────────────────────────────────────────────────────────────┤
-│ ⭐ WINNER <300k  ✅ Tốt 300-500k  📊 TB 500-800k  ⚠️ Cao  🆕 Test    │
-├──────────────────────────────────────────────────────────────────────────┤
-│                    ← META API LIVE →       ← QUALIFY →    ← HIỆU QUẢ →│
-│ Loại│Chiến dịch   │Chi tiêu│Lead│CPL│CTR%│Freq│F1│Rate│F1%│CPL/F1│HQ│CL│
-├─────┼─────────────┼────────┼────┼───┼────┼────┼──┼────┼───┼──────┼──┼──┤
-│ LF  │LINH 3       │23.2M đ │168 │138│1.30│1.33│52│39% │31%│446K  │✅│✅│
-│ LF  │BAO_1        │11.5M đ │ 75 │153│1.97│1.68│24│33% │32%│479K  │✅│✅│
-│ ...                                                                     │
-├──────────────────────────────────────────────────────────────────────────┤
-│                    ← KẾ HOẠCH & HÀNH ĐỘNG HÔM NAY →                    │
-│ Ưu tiên │ Kế hoạch        │ Hành động hôm nay  │ Người │ Deadline      │
-│ 🔴      │ Tăng budget +20%│ Tăng adset ×1.2    │ MBuyer│ Trước 12h     │
-└──────────────────────────────────────────────────────────────────────────┘
-```
+**Files mới:**
+- `lib/queries/db/dashboard-charts.ts`
+  - `getSpendTrendData(projectId, days=30)` — SUM spend theo ngày
+  - `getLeadFunnelData(projectId)` — COUNT leads theo stage
+- `lib/queries/dashboard-charts.ts` — dual-mode wrapper
+- `app/(dashboard)/_components/SpendTrendChart.tsx` — line chart (recharts)
+- `app/(dashboard)/_components/LeadFunnelChart.tsx` — bar chart ngang
 
-### Tính năng:
-- **Auto-rate Hiệu quả**: ⭐ (<300k) / ✅ (300-500k) / 📊 (500-800k) / ⚠️ (>800k)
-- **Auto-rate Chất lượng Content**: dựa CTR + CPM thresholds
-- **Inline edit**: click vào ô Ưu tiên/Kế hoạch/Hành động → edit trực tiếp
-- **AI Suggest**: nút "🤖 AI đề xuất" → AI Analyst phân tích data → fill Nhận xét + Hành động
-- **Filter**: Active / Paused / All
-- **Sort**: CPL/F1 tăng dần (default giống Excel)
+**Files sửa:**
+- `app/(dashboard)/page.tsx` — thêm charts section (sau stat cards)
+- `package.json` — thêm `recharts`
+
+**Verify**: Dashboard → chọn project → thấy 2 charts với data thật
+
+### 2.3 Privacy Policy page [Admin] — 0.5 ngày
+
+**Files mới:**
+- `app/(public)/privacy/page.tsx` — trang public không cần auth
+- `app/(public)/layout.tsx` — layout đơn giản
+
+**Verify**: `/privacy` truy cập được không cần đăng nhập
 
 ---
 
-## 7. Facebook Insights Sync Flow
+## Tuần 3: Meta Login — OAuth Flow (27/04-03/05)
 
+**Điều kiện**: FB App Review đã APPROVED (hoặc test trong Development mode)
+
+### 3.1 Meta Login backend [Dev] — 1 ngày
+
+**Flow:**
 ```
-Mỗi 15 phút (Inngest cron hoặc BullMQ):
-
-1. GET /act_{id}/campaigns?fields=id,name,status,objective
-   → Upsert campaigns table (status ON/OFF/PAUSED)
-
-2. Cho mỗi ACTIVE campaign:
-   GET /{campaign_id}/insights?fields=spend,impressions,clicks,ctr,cpm,frequency,actions
-   &date_preset=lifetime (hoặc time_range cho incremental)
-   → Upsert campaign_insights
-
-3. GET /act_{id}/ads?fields=id,name,creative{thumbnail_url}
-   → Upsert ads table (thumbnail_url)
-
-4. Cho mỗi ad:
-   GET /{ad_id}/insights?fields=spend,impressions,clicks,ctr,cpm,actions
-   → Upsert ad_insights
-
-5. Rebuild daily_aggregates
-6. Invalidate cache (revalidateTag)
+Digital click "Kết nối Facebook"
+  → Redirect: facebook.com/dialog/oauth?scope=ads_read,leads_retrieval,...
+  → User login FB + chấp nhận permissions
+  → FB redirect callback URL với ?code=xxx
+  → Server exchange code → short-lived token
+  → Exchange → long-lived token (60 ngày)
+  → Lưu token vào projects.fbAccessToken
 ```
 
-### Rate Limits Facebook API
-- 200 calls / hour / ad account (Graph API v21+)
-- Với 50 campaigns × 2 calls (campaign + insights) = 100 calls / sync
-- 4 syncs / hour = 400 calls → cần batch hoặc giảm frequency
+**Files mới:**
+- `apps/api/src/routes/fb-oauth.ts`
+  - `GET /api/fb/oauth/start?projectId=xxx` — build FB OAuth URL, redirect
+  - `GET /api/fb/oauth/callback` — exchange code → token → save to project
+  - `GET /api/fb/oauth/accounts` — list ad accounts user có quyền (sau login)
+  - `POST /api/fb/oauth/connect` — gán ad account đã chọn vào project
+  - `POST /api/fb/oauth/disconnect` — xóa token khỏi project
 
-### Giải pháp rate limit:
-- Dùng batch endpoint: `/?ids=camp1,camp2&fields=insights{spend,ctr}`
-- Hoặc: sync mỗi 30 phút thay 15 phút
-- Insights API level=campaign aggregate → 1 call cho tất cả campaigns
+**Files sửa:**
+- `apps/api/src/index.ts` — mount `app.route("/api/fb/oauth", fbOauthRoutes)`
+- `packages/db/schema/projects.ts` — thêm cột `fbTokenExpiresAt` (timestamp)
+
+**Verify**: Test OAuth flow end-to-end trong Development mode
+
+### 3.2 Meta Login frontend [Dev] — 1 ngày
+
+**Flow UI:**
+```
+Project Detail → section "Facebook"
+  → Chưa kết nối: nút "Kết nối Facebook" (xanh)
+  → Click → redirect FB → login → callback
+  → Hiện danh sách Ad Accounts → digital chọn 1
+  → Gán ad account vào project
+  → Hiện: "Đã kết nối: act_xxxxx · Hết hạn: 12/06/2026"
+```
+
+**Files mới:**
+- `app/(dashboard)/projects/[slug]/_components/FacebookConnectSection.tsx`
+  - Trạng thái: "Chưa kết nối" / "Đã kết nối" / "Token sắp hết"
+  - Button: "Kết nối Facebook" / "Đổi tài khoản" / "Ngắt kết nối"
+  - Dropdown: chọn Ad Account từ danh sách
+- `app/(dashboard)/projects/[slug]/_components/AdAccountSelector.tsx`
+  - List ad accounts sau khi OAuth thành công
+  - Mỗi account hiện: tên, ID, currency
+
+**Files sửa:**
+- `app/(dashboard)/projects/[slug]/page.tsx` — thêm `<FacebookConnectSection />`
+
+**Verify**: Digital vào project → click "Kết nối Facebook" → login → chọn ad account → data sync tự động
 
 ---
 
-## 8. Webhook Lead Realtime
+## Tuần 4: Multi-project + CI/CD (04-10/05)
 
-```
-Facebook leadgen webhook → POST /api/webhooks/facebook
-  → Verify signature (X-Hub-Signature-256)
-  → Extract: leadgen_id, page_id, form_id, created_time
-  → GET /leadgen_id?fields=field_data (tên, SĐT, email)
-  → Upsert vào leads table
-  → Trigger aggregate rebuild
-  → SSE notify dashboard (Phase 2.5)
-```
+### 4.1 Per-project token sync [Dev] — 0.5 ngày
 
----
+**Vấn đề**: Sync worker dùng `process.env.FB_SYSTEM_USER_TOKEN` global. Cần per-project.
 
-## 9. Task breakdown
+**Files sửa:**
+- `apps/api/src/jobs/sync-fb-insights.ts`
+  - [ ] Đổi: query `projects.fbAccessToken` cho từng project
+  - [ ] Fallback: dùng env nếu project không có token
+- `apps/api/src/jobs/scheduler.ts`
+  - [ ] Loop tất cả projects có `fbAdAccountId` + `fbAccessToken`
+  - [ ] Schedule sync riêng cho mỗi project
 
-### Phase 2.0 — Schema + Config (1 ngày)
-- [ ] Thêm `db/schema/fb-insights.ts` (campaign_insights, ad_insights, campaign_actions)
-- [ ] Migration: `npm run db:push`
-- [ ] Env vars: `FB_APP_ID`, `FB_APP_SECRET`, `FB_SYSTEM_USER_TOKEN`, `FB_AD_ACCOUNT_ID`
-- [ ] `lib/fb/client.ts` — Facebook Graph API client wrapper
+**Verify**: 2 projects dùng 2 FB accounts khác nhau, sync đúng data
 
-### Phase 2.1 — Insights Sync (2 ngày)
-- [ ] `lib/fb/sync-campaigns.ts` — pull campaign list + objective + status
-- [ ] `lib/fb/sync-insights.ts` — pull spend/CTR/CPL/CPM/Freq per campaign + ad
-- [ ] `lib/fb/sync-creatives.ts` — pull ad thumbnail URLs
-- [ ] Inngest function `fb-sync-insights` (cron mỗi 15-30 phút)
-- [ ] Auto-rate hiệu quả + chất lượng content (rule engine)
+### 4.2 CI/CD GitHub Actions [Dev] — 0.5 ngày
 
-### Phase 2.2 — Webhook Lead (1 ngày)
-- [ ] `app/api/webhooks/facebook/route.ts` — GET verify + POST handler
-- [ ] Signature verification (HMAC SHA-256)
-- [ ] Leadgen data fetch + upsert lead + aggregate rebuild
-- [ ] Test với Facebook Webhooks Test tool
+**Files mới:**
+- `.github/workflows/ci.yml`
+  ```yaml
+  on: [push, pull_request]
+  jobs:
+    test:
+      steps: checkout → setup-node 22 → npm ci → tsc --noEmit → npm test
+  ```
+- `.github/workflows/deploy-vps.yml`
+  ```yaml
+  on: push main (paths: apps/api/**)
+  jobs:
+    deploy: SSH → git pull → npm ci → npm run build → pm2 restart
+  ```
 
-### Phase 2.3 — Trang "Phân tích Campaign" (2 ngày)
-- [ ] `app/(dashboard)/report/campaigns/page.tsx` — layout giống Excel
-- [ ] `lib/queries/campaign-analysis.ts` — join campaigns + insights + F1 data
-- [ ] Sidebar menu item mới: "Phân tích Campaign"
-- [ ] Inline edit cho ô Ưu tiên / Kế hoạch / Hành động / Assignee / Deadline
-- [ ] `lib/actions/campaign-actions.ts` — CRUD campaign_actions
-- [ ] AI Suggest button → gọi AI Analyst với context campaign data
+**GitHub Secrets [Admin]:**
+- [ ] `VPS_SSH_KEY` — SSH private key cho VPS
+- [ ] `VPS_USER` — root
+- [ ] `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
 
-### Phase 2.4 — Fill cột trống hiện tại (0.5 ngày)
-- [ ] Section Chiến dịch: fill Chi tiêu / Hiển thị / CTR / CPL / Hiệu quả từ campaign_insights
-- [ ] Section Mẫu QC: fill CTR / CPL / thumbnail từ ad_insights
-- [ ] Dashboard Overview: fill Tổng chi phí MKT từ insights (thay manual cost)
+**Verify**: Push commit → GitHub Actions tab chạy xanh → VPS tự update
 
-### Phase 2.5 — SSE Realtime (optional, 1 ngày)
-- [ ] `app/api/sse/leads/route.ts` — Server-Sent Events
-- [ ] `lib/realtime/notify.ts` — Neon LISTEN/NOTIFY hoặc polling
-- [ ] Dashboard auto-refresh khi có lead mới
+### 4.3 Vercel auto-deploy [Dev] — đã có
+
+Vercel Git integration đã hoạt động — push main → auto deploy. Chỉ cần verify.
 
 ---
 
-## 10. Kiến trúc tương lai (Hono + VPS)
+## Tuần 5: Mobile + Export PDF (11-17/05)
 
-```
-Sau khi Phase 2 ổn định trên Vercel:
+### 5.1 Mobile responsive [Dev] — 1.5 ngày
 
-┌─────────────────────────────────────────────────┐
-│                VPS (2 core Xeon, 4GB)            │
-│                                                  │
-│  ┌──────────┐  ┌──────────┐  ┌──────────────┐  │
-│  │ Hono API │  │ Postgres │  │ Redis+BullMQ │  │
-│  │ port 3001│──│ local    │  │ background   │  │
-│  │          │  │ pool=20  │  │ jobs         │  │
-│  └──────────┘  └──────────┘  └──────────────┘  │
-│       ↑ persistent conn (2-5ms/query)           │
-│       ↑ thay HTTP driver (50-100ms/query)       │
-└─────────────────────────────────────────────────┘
-         ↕ HTTPS
-┌──────────────────────┐
-│ Vercel (Frontend)     │
-│ Next.js Dashboard     │
-│ gọi Hono API          │
-└──────────────────────┘
+**Files sửa:**
+- `app/(dashboard)/_components/Sidebar.tsx`
+  - [ ] Mobile: ẩn sidebar, hamburger menu icon
+  - [ ] Slide-in overlay trên mobile
+- `app/(dashboard)/_components/Topbar.tsx`
+  - [ ] Thêm hamburger button (`md:hidden`)
+- `app/(dashboard)/report/campaigns/_components/CampaignAnalysisTable.tsx`
+  - [ ] `overflow-x-auto` wrapper
+  - [ ] Ẩn cột phụ trên mobile: `hidden md:table-cell`
+- `app/(dashboard)/projects/page.tsx`
+  - [ ] Grid: `grid-cols-1 sm:grid-cols-2`
 
-Migration plan:
-1. Setup Postgres + Redis trên VPS
-2. Scaffold Hono project (share Drizzle schema)
-3. Migrate API routes: /api/upload, /api/chat, /api/fb/*
-4. Next.js chuyển từ query DB trực tiếp → fetch Hono API
-5. Facebook webhook point tới VPS domain
-6. Vercel chỉ còn SSR frontend
-```
+**Verify**: Chrome DevTools → iPhone 14 viewport → tất cả trang OK
 
----
+### 5.2 Export PDF [Dev] — 0.5 ngày
 
-## 11. Timeline tổng
+**Files mới:**
+- `lib/actions/export-campaign-pdf.ts` — server action tạo PDF
+  - Layout: landscape A4, logo Smartland, bảng data, tổng cộng
 
-| Tuần | Task | Blocker |
-|---|---|---|
-| **Tuần 1** | Facebook App + Business Verification + Schema | Meta review |
-| **Tuần 2** | Insights Sync + fill cột trống | Cần FB token |
-| **Tuần 3** | Webhook Lead + trang Phân tích Campaign | Cần webhook verify |
-| **Tuần 4** | AI Suggest + SSE Realtime + polish | — |
-| **Tuần 5+** | Migrate Hono + VPS | Cần VPS ready |
+**Files sửa:**
+- `app/(dashboard)/report/campaigns/_components/ExportButton.tsx`
+  - Thêm dropdown: "Xuất Excel" / "Xuất PDF"
+- `package.json` — thêm `jspdf` + `jspdf-autotable`
+
+**Verify**: Click "Xuất PDF" → file download, mở OK
 
 ---
 
-## 12. Risk & Mitigation
+## Tuần 6: Polish + Infrastructure (18-25/05)
 
-| Risk | Impact | Mitigation |
-|---|---|---|
-| Meta App Review fail/chậm | Block toàn bộ Phase 2 | Giữ CSV upload fallback vĩnh viễn, adapter pattern sẵn |
-| Facebook rate limit 200/hr | Insights sync timeout | Batch API calls, giảm frequency 30 phút |
-| Token expire | Sync ngừng | System User token không expire; monitor + alert |
-| VPS downtime | API unavailable | Giữ Vercel fallback, health check + PM2 restart |
-| 75K+ leads query chậm | Dashboard lag | daily_aggregates + campaign_insights pre-computed |
+### 6.1 SSE realtime notifications [Dev] — 0.5 ngày
+
+**Files mới:**
+- `apps/api/src/routes/sse.ts` — SSE endpoint `/api/sse/notifications`
+- `app/(dashboard)/_components/NotificationBell.tsx` — bell icon + dropdown
+
+**Files sửa:**
+- `apps/api/src/services/fb/process-webhook-lead.ts` — emit event khi có lead mới
+- `app/(dashboard)/_components/Topbar.tsx` — thêm `<NotificationBell />`
+
+**Verify**: Lead mới từ FB → toast notification < 5s
+
+### 6.2 Dark mode [Dev] — 0.5 ngày
+
+**Files sửa:**
+- `app/layout.tsx` — ThemeProvider (next-themes đã có)
+- `app/(dashboard)/_components/Topbar.tsx` — toggle Sun/Moon
+- Components: thêm `dark:` variants
+
+**Verify**: Toggle dark/light, tất cả trang đọc được
+
+### 6.3 Sentry error monitoring [Dev] — 0.5 ngày
+
+- [ ] `npm install @sentry/nextjs` + wizard setup
+- [ ] `apps/api/src/index.ts` — Sentry.init() + captureException trong onError
+- [ ] Env: `SENTRY_DSN` trên Vercel + VPS
+
+**Verify**: Trigger lỗi → event trên Sentry dashboard
+
+### 6.4 DB backup + VPS monitoring [Dev] — 0.5 ngày
+
+**Files mới:**
+- `scripts/backup-db.sh` — pg_dump + gzip + auto-delete 30 ngày
+- `scripts/health-check.sh` — check API + Redis + disk
+
+**Cron trên VPS:**
+```
+0 3 * * *    /opt/dashboard-v2/scripts/backup-db.sh
+*/5 * * * *  /opt/dashboard-v2/scripts/health-check.sh
+```
+
+**Verify**: Backup file tạo mỗi sáng. Health check chạy mỗi 5 phút.
+
+---
+
+## Tổng hợp theo vai trò
+
+### [Admin] cần làm:
+- [ ] Tuần 1: Business Verification trên Meta Business Suite
+- [ ] Tuần 2: Tạo Privacy Policy page (nội dung bảo mật)
+- [ ] Tuần 1-2: Submit FB App Review
+- [ ] Tuần 4: Thêm GitHub Secrets (VPS_SSH_KEY, VERCEL_TOKEN)
+- [ ] Tuần 6: Tạo Sentry project + UptimeRobot
+
+### [Dev] cần làm:
+- [ ] Tuần 1: Daily sync + auto-pull leads + token monitor
+- [ ] Tuần 2: Export Excel + charts
+- [ ] Tuần 3: Meta Login OAuth (backend + frontend)
+- [ ] Tuần 4: Per-project sync + CI/CD
+- [ ] Tuần 5: Mobile responsive + Export PDF
+- [ ] Tuần 6: SSE notifications + dark mode + Sentry + backup
+
+---
+
+## Dependencies
+
+```
+App Review submit (tuần 1) → chờ Meta → OAuth flow (tuần 3)
+Daily insights (tuần 1) → Charts (tuần 2)
+Auto-pull leads (tuần 1) → SSE notifications (tuần 6)
+OAuth flow (tuần 3) → Per-project sync (tuần 4)
+```
+
+## Risks
+
+| Risk | Xác suất | Impact | Giải pháp |
+|------|----------|--------|-----------|
+| FB App Review reject/chậm | Trung bình | Block OAuth flow | Test Development mode trước. Giữ token thủ công làm fallback |
+| Token 60 ngày hết hạn | Thấp | Sync ngừng | Task 1.3: monitor + alert 7 ngày trước |
+| FB rate limit 200 calls/hr | Thấp | Data chậm | Daily sync thay vì 30 phút. Concurrency=1 |
+| VPS 4GB RAM không đủ | Thấp | OOM crash | PM2 max_memory_restart. Postgres shared_buffers 512MB |
+
+## Tiêu chí hoàn thành Phase 2
+
+- [ ] Digital login Meta → chọn Ad Account → data tự sync
+- [ ] Leads từ FB Lead Forms tự xuất hiện mỗi 15 phút
+- [ ] Campaign insights có data theo ngày (30 ngày history)
+- [ ] Export Excel/PDF hoạt động
+- [ ] Dashboard có charts (spend trend + lead funnel)
+- [ ] Mobile responsive trên iPhone
+- [ ] Dark mode toggle
+- [ ] CI/CD: push → auto test + deploy
+- [ ] Sentry bắt errors
+- [ ] DB backup tự động
+- [ ] Token monitor cảnh báo trước 7 ngày

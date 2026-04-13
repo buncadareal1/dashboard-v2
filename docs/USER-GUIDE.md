@@ -481,10 +481,15 @@ Le Van C,Dang Cham,Anh - Aura,05/03/2026 13:20,Chờ phản hồi khách hàng
 ```
 
 **Hướng dẫn**:
-1. Mở file bằng **Excel**
-2. Cột **Responsible** phải có định dạng: `"Tên - Team"` (ví dụ: `"Linh - Juno"`)
-3. Cột **Stage** phải khớp với giai đoạn trong Bitrix
-4. Lưu dưới dạng **CSV**
+1. Sử dụng file Screenshot của chị Nam Hương, up lên chat Claude kèm prompt sau: "Bạn là công cụ chuyển đổi dữ liệu. Tôi gửi kèm file pdf ảnh chụp màn hình Bitrix24 CRM (danh sách lead). Hãy trích xuất thành file CSV theo đúng format dưới đây, không thêm bất kỳ text nào khác ngoài CSV. 
+YÊU CẦU: - Output là CSV thuần, dòng đầu là header. - 5 cột bắt buộc theo đúng thứ tự: Lead,Stage,Responsible,Updated Time,Comment - Mỗi dòng = 1 lead. QUY TẮC CỘT: 1. Lead: tên khách hàng (cột "Lead" trong Bitrix). Giữ nguyên dấu tiếng Việt. Bỏ icon, emoji, chỉ giữ tên thuần. 2. Stage: raw stage string từ cột "Stage". Giữ nguyên casing + suffix. Ví dụ hợp lệ: "F1 (QT dự án cụ thể)", "Đang Chăm (2h)", "Booking", "Không Bắt Máy", "Thuê bao KLL được", "Chào dự án khác", "Môi giới", "Spam Lead", "Đã mua", "New", "MKT Cũ", "Không SĐT", "Sale phone", "Data thô", "Flash". 3. Responsible: format "Tên Nhân Viên " với team là 1 trong Juno/Neptune/Aura/Virgo. Phải có đúng khoảng trắng quanh dấu gạch: " - " (space, dash, space). Bỏ avatar/icon, chỉ giữ text. Nếu không thấy team suffix thì chỉ ghi tên. 4. Updated Time: format DD/MM/YYYY HH:mm (VN format, 24h). Nếu Bitrix chỉ hiển thị "yesterday" / "today" thì dùng ngày hôm nay là [ĐIỀN NGÀY HIỆN TẠI] và giờ 00:00. Nếu chỉ có ngày không có giờ thì ghi "DD/MM/YYYY" không có giờ. 5. Comment: nội dung cột Comment. Nếu rỗng thì để trống (vẫn phải có dấu phẩy phân cách). 
+QUY TẮC ESCAPE CSV: - Nếu Comment hoặc Lead chứa dấu phẩy, xuống dòng, hoặc dấu nháy kép, PHẢI wrap toàn bộ giá trị đó bằng dấu nháy kép "..." - Dấu nháy kép trong chuỗi escape bằng "" (double quote). 
+VÍ DỤ OUTPUT HỢP LỆ: Lead,Stage,Responsible,Updated Time,Comment Nguyễn Văn An,F1 (QT dự án cụ thể),Phạm Văn Sinh - Neptune,09/04/2026 14:30,"quan tâm căn 2PN, đã gửi báo giá" Trần Thị Bình,Đang Chăm (2h),Lã Thị Ngà - Aura,09/04/2026 09:15,gọi 2 lần chưa bắt máy Lê Văn Cường,Booking,Nguyễn Thu Trang - Juno,09/04/2026 16:00, 
+BẮT ĐẦU CHUYỂN ĐỔI. Không viết giải thích, không dùng markdown code block, chỉ output CSV thuần từ dòng header trở đi."
+
+2. Claude sẽ xuất ra đoạn CSV, yêu cầu Claude xuất thành file CSV
+3. Dùng file CSV đó up lên Dashboard để cập nhật trạng thái lead
+
 
 **Danh sách Stage hợp lệ**:
 - Lead (mới tạo)
