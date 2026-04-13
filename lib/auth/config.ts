@@ -101,12 +101,29 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         }
       }
 
-      // 2. Provisioned user check
-      const dbUser = await db.query.users.findFirst({
+      // 2. Find or auto-create user
+      let dbUser = await db.query.users.findFirst({
         where: eq(users.email, email),
       });
-      if (!dbUser) return "/login?error=not-provisioned";
-      if (!dbUser.active) return "/login?error=deactivated";
+
+      if (!dbUser) {
+        // Auto-create with active=false (pending approval)
+        const [newUser] = await db
+          .insert(users)
+          .values({
+            email,
+            name: profile?.name ?? user?.name ?? email.split("@")[0],
+            image: (profile?.picture as string) ?? null,
+            role: "digital", // default role — admin sẽ đổi sau
+            active: false,   // pending — chờ admin duyệt
+          })
+          .returning();
+        dbUser = newUser;
+        // Redirect to pending page
+        return "/pending";
+      }
+
+      if (!dbUser.active) return "/pending";
 
       // 3. Update last login (chỉ Google update image)
       await db
@@ -140,13 +157,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     },
 
     async session({ session, token }) {
-      // Block deactivated user
-      if (token.active === false) {
-        throw new Error("DEACTIVATED");
-      }
       if (session.user) {
         session.user.id = token.sub as string;
         session.user.role = token.role as UserRole;
+        // Pass active status to client for pending check
+        (session.user as unknown as Record<string, unknown>).active = token.active;
       }
       return session;
     },

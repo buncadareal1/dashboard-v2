@@ -7,7 +7,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   domain: "Email không thuộc domain công ty được phép.",
   "not-provisioned":
     "Tài khoản chưa được cấp quyền. Vui lòng liên hệ admin.",
-  deactivated: "Tài khoản đã bị vô hiệu hoá.",
+  deactivated: "Tài khoản đang chờ admin duyệt. Vui lòng liên hệ admin.",
   "no-email": "Tài khoản Google không có email.",
   Configuration: "Cấu hình OAuth lỗi. Liên hệ admin.",
   AccessDenied: "Truy cập bị từ chối.",
@@ -56,7 +56,7 @@ export default async function LoginPage({
           <p className="text-center text-xs text-muted-foreground">
             Chỉ tài khoản thuộc domain công ty được phép truy cập.
             <br />
-            Tài khoản phải được admin tạo trước.
+            Tài khoản mới sẽ được tạo tự động và chờ admin duyệt.
           </p>
         </CardContent>
       </Card>

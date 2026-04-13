@@ -26,6 +26,14 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
+  // Check if user is pending (active=false) → redirect to pending page
+  const dbUser = await db.query.users.findFirst({
+    where: eq(users.id, user.id),
+  });
+  if (dbUser && !dbUser.active) {
+    redirect("/pending");
+  }
+
   // DEV ONLY: load active users để widget switch user
   const isDev = process.env.NODE_ENV !== "production";
   const devUsers = isDev
