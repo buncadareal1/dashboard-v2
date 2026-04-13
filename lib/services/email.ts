@@ -4,7 +4,7 @@ const resend = process.env.RESEND_API_KEY
   ? new Resend(process.env.RESEND_API_KEY)
   : null;
 
-const FROM_EMAIL = process.env.NOTIFICATION_FROM_EMAIL ?? "noreply@smartland.vn";
+const FROM_EMAIL = process.env.NOTIFICATION_FROM_EMAIL ?? "onboarding@resend.dev";
 const ADMIN_EMAIL = process.env.ADMIN_NOTIFICATION_EMAIL ?? "webdev@smartland.vn";
 
 interface SendEmailOptions {
