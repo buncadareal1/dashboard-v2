@@ -10,6 +10,7 @@ import {
   TrendingUp,
   Settings,
   AlertTriangle,
+  BookOpen,
   Bot,
   type LucideIcon,
 } from "lucide-react";
@@ -56,6 +57,12 @@ const NAV_ITEMS: NavItem[] = [
     href: "/conflicts",
     icon: AlertTriangle,
     visibleFor: ["admin"],
+  },
+  {
+    label: "Hướng dẫn",
+    href: "/guide",
+    icon: BookOpen,
+    visibleFor: ["admin", "digital", "gdda"],
   },
   {
     label: "Settings",

@@ -17,6 +17,7 @@ const DATE_VN = new Intl.DateTimeFormat("vi-VN", {
   day: "2-digit",
   month: "2-digit",
   year: "numeric",
+  timeZone: "Asia/Ho_Chi_Minh",
 });
 
 const DATETIME_VN = new Intl.DateTimeFormat("vi-VN", {
@@ -26,6 +27,7 @@ const DATETIME_VN = new Intl.DateTimeFormat("vi-VN", {
   hour: "2-digit",
   minute: "2-digit",
   hour12: false,
+  timeZone: "Asia/Ho_Chi_Minh",
 });
 
 /**
@@ -84,6 +86,7 @@ export function formatDate(d: Date | string | null | undefined): string {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
+    timeZone: "Asia/Ho_Chi_Minh",
   });
 }
 
@@ -100,6 +103,7 @@ export function formatDateTime(d: Date | string | null | undefined): string {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Asia/Ho_Chi_Minh",
   });
 }
 
