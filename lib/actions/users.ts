@@ -61,6 +61,21 @@ export async function activateUserAction(userId: string) {
   revalidatePath("/settings");
 }
 
+/**
+ * Change user role (admin only).
+ */
+export async function changeRoleAction(
+  userId: string,
+  newRole: "admin" | "digital" | "gdda",
+) {
+  await assertRole(["admin"]);
+  await db
+    .update(users)
+    .set({ role: newRole, updatedAt: new Date() })
+    .where(eq(users.id, userId));
+  revalidatePath("/settings");
+}
+
 const UpdateAccountSchema = z.object({
   name: z.string().min(1, "Họ tên không được rỗng").max(120),
   image: z

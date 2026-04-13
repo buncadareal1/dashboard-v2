@@ -5,6 +5,7 @@ import { users, projectUsers, projects } from "@/db/schema";
 import { eq, and, isNull, sql } from "drizzle-orm";
 import { UserFormDialog } from "./_components/UserFormDialog";
 import { UserActionsMenu } from "./_components/UserActionsMenu";
+import { RoleToggle } from "./_components/RoleToggle";
 import { AccountForm } from "./_components/AccountForm";
 import {
   Tabs,
@@ -117,17 +118,11 @@ export default async function SettingsPage() {
                           {u.email}
                         </TableCell>
                         <TableCell>
-                          <Badge
-                            className={
-                              u.role === "admin"
-                                ? "bg-purple-100 text-purple-700"
-                                : u.role === "digital"
-                                  ? "bg-blue-100 text-blue-700"
-                                  : "bg-emerald-100 text-emerald-700"
-                            }
-                          >
-                            {u.role.toUpperCase()}
-                          </Badge>
+                          <RoleToggle
+                            userId={u.id}
+                            currentRole={u.role}
+                            userName={u.name ?? u.email}
+                          />
                         </TableCell>
                         <TableCell>
                           {teamData.assignmentCounts.get(u.id) ?? 0} dự án
